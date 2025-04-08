@@ -36,13 +36,7 @@ all Rerun C++ sources and headers, as well as CMake build instructions for them.
 By default this will in turn download & build [Apache Arrow](https://arrow.apache.org/)'s C++ library which is required to build the Rerun C++.
 See [Install arrow-cpp](https://ref.rerun.io/docs/cpp/stable/md__2home_2runner_2work_2rerun_2rerun_2rerun__cpp_2arrow__cpp__install.html) to learn more about this step and how to use an existing install.
 
-Currently, Rerun SDK works with C++17 or newer, so you need to add this property to your target:
-
-```cmake
-set_property(TARGET example_minimal PROPERTY CXX_STANDARD 17)
-```
-
-And finally, make sure you link with `rerun_sdk`:
+Finally, make sure you link with `rerun_sdk`:
 
 ```cmake
 target_link_libraries(example_minimal PRIVATE rerun_sdk)
@@ -62,12 +56,11 @@ FetchContent_Declare(rerun_sdk URL
     https://github.com/rerun-io/rerun/releases/latest/download/rerun_cpp_sdk.zip)
 FetchContent_MakeAvailable(rerun_sdk)
 
-# Rerun requires at least C++17, but it should be compatible with newer versions.
-set_property(TARGET example_minimal PROPERTY CXX_STANDARD 17)
-
 # Link against rerun_sdk.
 target_link_libraries(example_minimal PRIVATE rerun_sdk)
 ```
+
+Note that Rerun requires at least C++17. Depending on the sdk will automatically ensure that C++17 or newer is enabled.
 
 ## Logging some data
 
@@ -81,7 +74,7 @@ Add the following code to your `main.cpp`
 using namespace rerun::demo;
 
 int main() {
-    // Create a new `RecordingStream` which sends data over TCP to the viewer process.
+    // Create a new `RecordingStream` which sends data over gRPC to the viewer process.
     const auto rec = rerun::RecordingStream("rerun_example_cpp");
     // Try to spawn a new viewer instance.
     rec.spawn().exit_on_failure();
@@ -105,7 +98,7 @@ cmake --build build -j
 ./build/example_minimal
 ```
 
-Once everything finishes compiling, the application will spawn the rerun viewer and send the data to it:
+Once everything finishes compiling, the application will spawn the Rerun Viewer and send the data to it:
 
 <picture>
   <img src="https://static.rerun.io/intro_cpp_result/398c8fb79766e370a65b051b38eac680671c348a/full.png" alt="">
@@ -115,7 +108,7 @@ Once everything finishes compiling, the application will spawn the rerun viewer 
   <source media="(max-width: 1200px)" srcset="https://static.rerun.io/intro_cpp_result/398c8fb79766e370a65b051b38eac680671c348a/1200w.png">
 </picture>
 
-## Using the viewer
+## Using the Viewer
 
 Try out the following to interact with the viewer:
 

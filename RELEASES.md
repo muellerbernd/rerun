@@ -16,7 +16,7 @@ New Rerun versions are released approximately once every month. Sometimes we do 
 
 ## Library versioning and release cadence
 Each release include new versions of:
-* All rust crates
+* All Rust crates
 * The Python SDK
 * The Rust SDK
 * The C++ SDK
@@ -39,7 +39,7 @@ Our Minimum Supported Rust Version (MSRV) is always _at least_ one minor release
 ## Data and communication versioning
 We have not yet committed to any backwards or forwards compatibility.
 
-We tag all data files (`.rrd` files) and communication protocols with the rerun version number. If there is a version mismatch, a warning is logged, but an attempt is still made to load the older or newer data.
+We tag all data files (`.rrd` files) and communication protocols with the Rerun version number. If there is a version mismatch, a warning is logged, but an attempt is still made to load the older or newer data.
 
 
 ## Releases
@@ -48,59 +48,87 @@ If we are doing a patch release, we do a branch off of the latest release tag (e
 
 # Release process
 
-1. ### Check the root [`Cargo.toml`](/Cargo.toml) to see what version we are currently on.
+### 1. Check the root [`Cargo.toml`](/Cargo.toml) to see what version we are currently on.
 
-2. ### Create a release branch.
+### 2. Create a release branch.
 
-   The name should be:
-   - `release-0.x.y` for final releases and their release candidates.
-   - `release-0.x.y-alpha.N` where `N` is incremented from the previous alpha,
-     or defaulted to `1` if no previous alpha exists.
+The name should be:
+- `release-0.x.y` for final releases and their release candidates.
+- `release-0.x.y-alpha.N` where `N` is incremented from the previous alpha,
+  or defaulted to `1` if no previous alpha exists.
 
-   Note that `release-0.x` is _invalid_. Always specify the `y`, even if it is `0`,
-   e.g. `release-0.15.0` instead of `release-0.15`.
+Note that `release-0.x` is _invalid_. Always specify the `y`, even if it is `0`,
+e.g. `release-0.15.0` instead of `release-0.15`.
+
+For minor release, the branch is typically created from `main`. For patch release, the branch is typically created
+from the previous release's tag.
 
 ![Image showing the branch create UI. You can find the `new branch` button at https://github.com/rerun-io/rerun/branches](https://github.com/rerun-io/rerun/assets/1665677/becaad03-9262-4476-b811-c23d40305aec)
 
 Note: you do not need to create a PR for this branch -- the release workflow will do that for you.
 
-3. ### If this is a patch release, cherry-pick commits for inclusion in the release into the branch.
+### 3. If this is a patch release, cherry-pick commits for inclusion in the release into the branch.
 
-  When done, run [`cargo semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks) to check that we haven't introduced any semver breaking changes.
+When done, run [`cargo semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks) to check that we haven't introduced any semver breaking changes.
 
-4. ### Update [`CHANGELOG.md`](/CHANGELOG.md).
+:warning: Any commits between the last release's tag and the `docs-latest` branch should also be cherry-picked,
+otherwise these changes will be lost when `docs-latest` is updated.
 
-    It should include:
-      - A one-line summary of the release
-      - A multi-line summary of the release
-      - A gif showing a major new feature
-      - Run `pip install GitPython && scripts/generate_changelog.py`
-      - Edit PR descriptions/labels to improve the generated changelog
-      - Copy-paste the results into `CHANGELOG.md`.
-      - Editorialize the changelog if necessary
-      - Make sure the changelog includes instructions for handling any breaking changes
+```
+# On branch `release-0.x.y`
+git fetch origin docs-latest:docs-latest
+git cherry-pick 0.x.z..docs-latest
+```
 
-    Once you're done, commit and push the changelog onto the release branch.
+Where `z` is the previous patch number.
 
-5. ### Run the [release workflow](https://github.com/rerun-io/rerun/actions/workflows/release.yml).
+Note that the `cherry-pick` will fail if there are no additional `docs-latest` commits to include,
+which is fine.
 
-   In the UI:
-   - Set `Use workflow from` to the release branch you created in step (2).
-   - Then choose one of the following values in the dropdown:
-     - `alpha` if the branch name is `release-x.y.z-alpha.N`.
-       This will create a one-off alpha release.
+### 4. Update [`CHANGELOG.md`](/CHANGELOG.md) and clean ups.
 
-     - `rc` if the branch name is `release-x.y.z`.
-       This will create a pull request for the release, and publish a release candidate.
+Update the change log. It should include:
+  - A one-line summary of the release
+  - A multi-line summary of the release
+  - A gif showing a major new feature
+  - Run `pip install GitPython && scripts/generate_changelog.py > new_changelog.md`
+  - Edit PR descriptions/labels to improve the generated changelog
+  - Copy-paste the results into `CHANGELOG.md`.
+  - Editorialize the changelog if necessary
+  - Make sure the changelog includes instructions for handling any breaking changes
 
-     - `final` for the final public release
+Remove the speculative link markers (`?speculative-link`).
 
-   ![Image showing the Run workflow UI. It can be found at https://github.com/rerun-io/rerun/actions/workflows/release.yml](https://github.com/rerun-io/rerun/assets/1665677/6cdc8e7e-c0fc-4cf1-99cb-0749957b8328)
+Remove all the `attr.docs.unreleased` attributes in all `.fbs` files, followed by `pixi run codegen`.
 
-6. ### Wait for the workflow to finish
+Once you're done, commit and push onto the release branch.
 
-   The PR description will contain next steps.
+### 5. Run the [release workflow](https://github.com/rerun-io/rerun/actions/workflows/release.yml).
 
-   Note: there are two separate workflows running -- the one building the release artifacts, and the one running the PR checks.
-   You will have to wait for the [former](https://github.com/rerun-io/rerun/actions/workflows/release.yml) in order to get a link
-   to the artifacts.
+In the UI:
+- Set `Use workflow from` to the release branch you created in step (2).
+- Then choose one of the following values in the dropdown:
+  - `alpha` if the branch name is `release-x.y.z-alpha.N`.
+    This will create a one-off alpha release.
+
+  - `rc` if the branch name is `release-x.y.z`.
+    This will create a pull request for the release, and publish a release candidate.
+
+  - `final` for the final public release
+
+![Image showing the Run workflow UI. It can be found at https://github.com/rerun-io/rerun/actions/workflows/release.yml](https://github.com/rerun-io/rerun/assets/1665677/6cdc8e7e-c0fc-4cf1-99cb-0749957b8328)
+
+### 6. Wait for the workflow to finish
+
+The PR description will contain next steps.
+
+Note: there are two separate workflows running -- the one building the release artifacts, and the one running the PR checks.
+You will have to wait for the [former](https://github.com/rerun-io/rerun/actions/workflows/release.yml) in order to get a link to the artifacts.
+
+### 7. Merge changes to `main`
+
+For minor release, merge the release branch to `main`.
+
+For patch release, manually create a new PR from `main` and cherry-pick the required commits. This includes at least
+the `CHANLGE.log` update, plus any other changes made on the release branch that hasn't been cherry-picked in the
+first place.

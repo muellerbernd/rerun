@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import rerun as rr
 
-README = """
+README = """\
 # Container Hierarchy
 
 This checks that the container hierarchy behaves as expected.
@@ -15,7 +15,7 @@ This checks that the container hierarchy behaves as expected.
 
 TODO(ab): setup the container hierarchy with the blueprint API when available.
 
-* Organize the space views in a non-trivial hierarchy of containers.
+* Organize the views in a non-trivial hierarchy of containers.
 * As a starting point, ensure that the hierarchy is "sane" (i.e. no leaf/single-child containers, etc.).
 
 
@@ -61,35 +61,40 @@ def log_readme() -> None:
     rr.log("readme", rr.TextDocument(README, media_type=rr.MediaType.MARKDOWN), static=True)
 
 
-def log_some_space_views() -> None:
+def log_some_views() -> None:
     from math import cos, sin, tau
 
-    rr.set_time_sequence("frame_nr", 0)
+    rr.set_time("frame_nr", sequence=0)
 
-    rr.log("boxes3d", rr.Boxes3D(centers=[[0, 0, 0], [1, 1.5, 1.15], [3, 2, 1]], half_sizes=[0.5, 1, 0.5] * 3))
-    rr.log("boxes2d", rr.Boxes2D(centers=[[0, 0], [1.3, 0.5], [3, 2]], half_sizes=[0.5, 1] * 3))
+    rr.log(
+        "boxes3d",
+        rr.Boxes3D(centers=[[0.0, 0.0, 0.0], [1.0, 1.5, 1.15], [3.0, 2.0, 1.0]], half_sizes=[0.5, 1.0, 0.5] * 3),
+    )
+    rr.log("boxes2d", rr.Boxes2D(centers=[[0.0, 0.0], [1.3, 0.5], [3.0, 2.0]], half_sizes=[0.5, 1.0] * 3))
     rr.log("text_logs", rr.TextLog("Hello, world!", level=rr.TextLogLevel.INFO))
     rr.log("points2d", rr.Points2D([[0, 0], [1, 1], [3, 2]], labels=["a", "b", "c"]))
     rr.log("points2d/bbx", rr.Boxes2D(centers=[1, 1], half_sizes=[3, 3]))
 
-    rr.log("plots/sin", rr.SeriesLine(color=[255, 0, 0], name="sin(0.01t)"), timeless=True)
-    rr.log("plots/cos", rr.SeriesLine(color=[0, 255, 0], name="cos(0.01t)"), timeless=True)
+    rr.log("plots/sin", rr.SeriesLines(colors=[255, 0, 0], names="sin(0.01t)"), static=True)
+    rr.log("plots/cos", rr.SeriesLines(colors=[0, 255, 0], names="cos(0.01t)"), static=True)
 
-    for t in range(0, int(tau * 2 * 10.0)):
-        rr.set_time_sequence("frame_nr", t)
+    for t in range(int(tau * 2 * 10.0)):
+        rr.set_time("frame_nr", sequence=t)
 
         sin_of_t = sin(float(t) / 10.0)
-        rr.log("plots/sin", rr.Scalar(sin_of_t))
+        rr.log("plots/sin", rr.Scalars(sin_of_t))
 
         cos_of_t = cos(float(t) / 10.0)
-        rr.log("plots/cos", rr.Scalar(cos_of_t))
+        rr.log("plots/cos", rr.Scalars(cos_of_t))
 
 
 def run(args: Namespace) -> None:
     rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4())
 
     log_readme()
-    log_some_space_views()
+    log_some_views()
+
+    rr.send_blueprint(rr.blueprint.Blueprint(auto_layout=True, auto_views=True), make_active=True, make_default=True)
 
 
 if __name__ == "__main__":

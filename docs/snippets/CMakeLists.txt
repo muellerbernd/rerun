@@ -1,10 +1,16 @@
 cmake_minimum_required(VERSION 3.16...3.27)
 
 # Setup builds for examples
-file(GLOB sources_list true ${CMAKE_CURRENT_SOURCE_DIR}/all/*.cpp)
+file(GLOB_RECURSE sources_list true ${CMAKE_CURRENT_SOURCE_DIR}/all/*.cpp)
 
-# TODO(ab): incomplete code, need hideable stubs, see https://github.com/rerun-io/landing/issues/515
-list(REMOVE_ITEM sources_list ${CMAKE_CURRENT_SOURCE_DIR}/all/timelines_example.cpp)
+# Not complete examples:
+list(FILTER sources_list EXCLUDE REGEX .*/concepts/static/*)
+list(FILTER sources_list EXCLUDE REGEX .*/tutorials/custom-application-id.*)
+list(FILTER sources_list EXCLUDE REGEX .*/tutorials/custom-recording-id.*)
+list(FILTER sources_list EXCLUDE REGEX .*/tutorials/log_line.*)
+list(FILTER sources_list EXCLUDE REGEX .*/tutorials/log-file.*)
+list(FILTER sources_list EXCLUDE REGEX .*/tutorials/quick_start.*)
+list(FILTER sources_list EXCLUDE REGEX .*/tutorials/timelines_example.*)
 
 add_custom_target(snippets)
 
@@ -17,6 +23,7 @@ foreach(SOURCE_PATH ${sources_list})
 
     set(EXAMPLE_TARGET ${SOURCE_NAME})
 
+    # message(STATUS "Adding snippet: ${SOURCE_PATH}")
     add_executable(${EXAMPLE_TARGET} ${SOURCE_PATH})
 
     rerun_strict_warning_settings(${EXAMPLE_TARGET})
@@ -26,4 +33,12 @@ foreach(SOURCE_PATH ${sources_list})
 endforeach()
 
 # `text_log_integration` uses `loguru` as the example text logging library.
-target_link_libraries(text_log_integration PRIVATE rerun_sdk loguru::loguru)
+target_link_libraries(text_log_integration PRIVATE loguru::loguru)
+
+# `any_values`-style examples use `arrow` directly.
+target_link_libraries(any_batch_value_column_updates PRIVATE rerun_arrow_target)
+target_link_libraries(any_values PRIVATE rerun_arrow_target)
+target_link_libraries(any_values_column_updates PRIVATE rerun_arrow_target)
+target_link_libraries(any_values_row_updates PRIVATE rerun_arrow_target)
+target_link_libraries(extra_values PRIVATE rerun_arrow_target)
+target_link_libraries(recording_properties PRIVATE rerun_arrow_target)

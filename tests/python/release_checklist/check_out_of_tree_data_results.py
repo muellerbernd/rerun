@@ -7,22 +7,27 @@ from uuid import uuid4
 import rerun as rr
 import rerun.blueprint as rrb
 
-README = """
+README = """\
 # Out-of-tree data results
 
 [Background issue](https://github.com/rerun-io/rerun/issues/5742)
 
-* Expand all the "TEST" space view.
+* Expand all the "TEST" view.
 * Check that you can select each of its children.
 """
 
 
 def log_readme() -> None:
-    rr.log("readme", rr.TextDocument(README, media_type=rr.MediaType.MARKDOWN), timeless=True)
+    rr.log("readme", rr.TextDocument(README, media_type=rr.MediaType.MARKDOWN), static=True)
 
 
 def blueprint() -> rrb.BlueprintLike:
-    return rrb.Blueprint(rrb.Spatial3DView(name="TEST", origin="/", contents="$origin/box/points/**"))
+    return rrb.Blueprint(
+        rrb.Horizontal(
+            rrb.TextDocumentView(origin="readme"),
+            rrb.Spatial3DView(name="TEST", origin="/", contents="$origin/box/points/**"),
+        ),
+    )
 
 
 def log_data() -> None:
@@ -33,7 +38,8 @@ def log_data() -> None:
 
 
 def run(args: Namespace) -> None:
-    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4(), default_blueprint=blueprint())
+    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4())
+    rr.send_blueprint(blueprint(), make_active=True, make_default=True)
 
     log_readme()
     log_data()

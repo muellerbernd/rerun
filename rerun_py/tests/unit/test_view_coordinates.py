@@ -4,20 +4,21 @@ from typing import Any
 
 import rerun.components as rrc
 from rerun.archetypes import ViewCoordinates
+from rerun.datatypes.view_coordinates import ViewCoordinatesArrayLike
 
 from .common_arrays import none_empty_or_value
 
 
 def view_coordinates_expected(obj: Any) -> rrc.ViewCoordinatesBatch:
     expected = none_empty_or_value(
-        obj, [rrc.ViewCoordinates.ViewDir.Right, rrc.ViewCoordinates.ViewDir.Down, rrc.ViewCoordinates.ViewDir.Forward]
+        obj,
+        [rrc.ViewCoordinates.ViewDir.Right, rrc.ViewCoordinates.ViewDir.Down, rrc.ViewCoordinates.ViewDir.Forward],
     )
 
     return rrc.ViewCoordinatesBatch(expected)
 
 
-VIEW_COORDINATES_INPUTS: list[rrc.ViewCoordinatesArrayLike | None] = [
-    None,
+VIEW_COORDINATES_INPUTS: list[ViewCoordinatesArrayLike] = [
     rrc.ViewCoordinates([
         rrc.ViewCoordinates.ViewDir.Right,
         rrc.ViewCoordinates.ViewDir.Down,

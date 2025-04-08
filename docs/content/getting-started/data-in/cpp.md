@@ -1,5 +1,5 @@
 ---
-title: Stream from C++
+title: Send from C++
 order: 1
 ---
 
@@ -29,7 +29,7 @@ And then to run it on Linux/Mac:
 ./build/example_dna
 ```
 
-and windows respectively:
+and Windows respectively:
 
 ```
 build\Debug\example_dna.exe
@@ -59,12 +59,11 @@ FetchContent_Declare(rerun_sdk URL
     https://github.com/rerun-io/rerun/releases/latest/download/rerun_cpp_sdk.zip)
 FetchContent_MakeAvailable(rerun_sdk)
 
-# Rerun requires at least C++17, but it should be compatible with newer versions.
-set_property(TARGET example_dna PROPERTY CXX_STANDARD 17)
-
 # Link against rerun_sdk.
 target_link_libraries(example_dna PRIVATE rerun_sdk)
 ```
+
+Note that Rerun requires at least C++17. Depending on the sdk will automatically ensure that C++17 or newer is enabled.
 
 ## Includes
 
@@ -92,7 +91,7 @@ To get going we want to create a [`RecordingStream`](https://github.com/rerun-io
 When creating the `RecordingStream` we also need to specify the name of the application we're working on
 by setting it's `ApplicationId`.
 
-We then use the stream to spawn a new rerun viewer via [`spawn`](https://github.com/rerun-io/rerun/blob/d962b34b07775bbacf14883d683cca6746852b6a/rerun_cpp/src/rerun/recording_stream.hpp#L151).
+We then use the stream to spawn a new Rerun Viewer via [`spawn`](https://github.com/rerun-io/rerun/blob/d962b34b07775bbacf14883d683cca6746852b6a/rerun_cpp/src/rerun/recording_stream.hpp#L151).
 
 Add our initial `main` to `main.cpp`:
 
@@ -117,7 +116,7 @@ cmake --build build -j
 ./build/example_dna
 ```
 
-When everything finishes compiling, an empty Rerun viewer should be spawned:
+When everything finishes compiling, an empty Rerun Viewer should be spawned:
 
 <picture>
   <img src="https://static.rerun.io/rerun-welcome-screen-0.9/cc45a0700ccf02016fb942153106db4af0c224db/full.png" alt="">
@@ -176,7 +175,7 @@ This tiny snippet of code actually holds much more than meets the eye…
 
 ### Archetypes
 
-The easiest way to log geometric primitives is the use the [`RecordingStream::log`](https://github.com/rerun-io/rerun/blob/d962b34b07775bbacf14883d683cca6746852b6a/rerun_cpp/src/rerun/recording_stream.hpp#L236) method with one of the built-in archetype class, such as [`Points3D`](https://github.com/rerun-io/rerun/blob/latest/rerun_cpp/src/rerun/archetypes/points3d.hpp). Archetypes take care of building batches of components that are recognized and correctly displayed by the Rerun viewer.
+The easiest way to log geometric primitives is the use the [`RecordingStream::log`](https://ref.rerun.io/docs/cpp/stable/classrerun_1_1RecordingStream.html#a7badac918d44d66e04e948f38818ff11) method with one of the built-in archetype class, such as [`Points3D`](https://github.com/rerun-io/rerun/blob/latest/rerun_cpp/src/rerun/archetypes/points3d.hpp). Archetypes take care of building batches of components that are recognized and correctly displayed by the Rerun viewer.
 
 ### Components
 
@@ -184,9 +183,9 @@ Under the hood, the Rerun C++ SDK logs individual _components_ like positions, c
 and radii. Archetypes are just one high-level, convenient way of building such collections of components. For advanced use
 cases, it's possible to add custom components to archetypes, or even log entirely custom sets of components, bypassing
 archetypes altogether.
-For more information on how the rerun data model works, refer to our section on [Entities and Components](../../concepts/entity-component.md).
+For more information on how the Rerun data model works, refer to our section on [Entities and Components](../../concepts/entity-component.md).
 
-Notably, the [`RecordingStream::log`](https://github.com/rerun-io/rerun/blob/d962b34b07775bbacf14883d683cca6746852b6a/rerun_cpp/src/rerun/recording_stream.hpp#L236) method
+Notably, the [`RecordingStream::log`](https://ref.rerun.io/docs/cpp/stable/classrerun_1_1RecordingStream.html#a7badac918d44d66e04e948f38818ff11) method
 will handle any data type that implements the [`AsComponents<T>`](https://github.com/rerun-io/rerun/blob/latest/rerun_cpp/src/rerun/as_components.hpp) trait, making it easy to add your own data.
 For more information on how to supply your own components see [Use custom data](../../howto/extend/custom-data.md).
 
@@ -197,16 +196,16 @@ Note the two strings we're passing in: `"dna/structure/left"` and `"dna/structur
 These are [_entity paths_](../../concepts/entity-component.md), which uniquely identify each entity in our scene. Every entity is made up of a path and one or more components.
 [Entity paths typically form a hierarchy](../../concepts/entity-path.md) which plays an important role in how data is visualized and transformed (as we shall soon see).
 
-### Batches
+### Component batches
 
 One final observation: notice how we're logging a whole batch of points and colors all at once here.
-[Batches of data](../../concepts/batches.md) are first-class citizens in Rerun and come with all sorts of performance benefits and dedicated features.
+[Component batches](../../concepts/batches.md) are first-class citizens in Rerun and come with all sorts of performance benefits and dedicated features.
 You're looking at one of these dedicated features right now in fact: notice how we're only logging a single radius for all these points, yet somehow it applies to all of them. We call this _clamping_.
 
 ---
 
 A _lot_ is happening in these two simple function calls.
-Good news is: once you've digested all of the above, logging any other Entity will simply be more of the same. In fact, let's go ahead and log everything else in the scene now.
+Good news is: once you've digested all of the above, logging any other entity will simply be more of the same. In fact, let's go ahead and log everything else in the scene now.
 
 ## Adding the missing pieces
 
@@ -292,7 +291,7 @@ Replace the section that logs the beads with a loop that logs the beads at diffe
 for (int t = 0; t < 400; t++) {
     auto time = std::chrono::duration<float>(t) * 0.01f;
 
-    rec.set_time("stable_time");
+    rec.set_time_duration("stable_time", time);
 
     for (size_t i = 0; i < lines.size(); ++i) {
         float time_offset = time.count() + offsets[i];
@@ -313,7 +312,7 @@ for (int t = 0; t < 400; t++) {
 }
 ```
 
-First we use [`RecordingStream::set_time_seconds`](https://github.com/rerun-io/rerun/blob/d962b34b07775bbacf14883d683cca6746852b6a/rerun_cpp/src/rerun/recording_stream.hpp#L192) to declare our own custom `Timeline` and set the current timestamp.
+First we use [`RecordingStream::set_time_secs`](https://ref.rerun.io/docs/cpp/stable/classrerun_1_1RecordingStream.html#ad735156502aea8eecd0a5eb2f6678d55) to declare our own custom `Timeline` and set the current timestamp.
 You can add as many timelines and timestamps as you want when logging data.
 
 ⚠️ If you run this code as is, the result will be.. surprising: the beads are animating as expected, but everything we've logged until that point is gone! ⚠️
@@ -322,13 +321,13 @@ You can add as many timelines and timestamps as you want when logging data.
 
 Enter…
 
-### Latest at semantics
+### Latest-at semantics
 
 That's because the Rerun Viewer has switched to displaying your custom timeline by default, but the original data was only logged to the _default_ timeline (called `log_time`).
 To fix this, go back to the top of your main and initialize your timeline before logging the initial structure:
 
 ```cpp
-rec.set_time_seconds("stable_time", 0.0f);
+rec.set_time_secs("stable_time", 0.0f);
 
 rec.log(
     "dna/structure/left",
@@ -345,10 +344,10 @@ rec.log(
   <source media="(max-width: 768px)" srcset="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/768w.png">
   <source media="(max-width: 1024px)" srcset="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/1024w.png">
   <source media="(max-width: 1200px)" srcset="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/1200w.png">
-  <img src="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/full.png" alt="screenshot after using latest at">
+  <img src="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/full.png" alt="screenshot after using latest-at">
 </picture>
 
-This fix actually introduces yet another very important concept in Rerun: "latest at" semantics.
+This fix actually introduces yet another very important concept in Rerun: "latest-at" semantics.
 Notice how entities `"dna/structure/left"` & `"dna/structure/right"` have only ever been logged at time zero, and yet they are still visible when querying times far beyond that point.
 
 _Rerun always reasons in terms of "latest" data: for a given entity, it retrieves all of its most recent components at a given time._
@@ -391,12 +390,12 @@ Sometimes, sending the data over the network is not an option. Maybe you'd like 
 
 Rerun has you covered:
 
--   Use [`RecordingStream::save`](https://github.com/rerun-io/rerun/blob/d962b34b07775bbacf14883d683cca6746852b6a/rerun_cpp/src/rerun/recording_stream.hpp#L162) to stream all logging data to disk.
+-   Use [`RecordingStream::save`](https://ref.rerun.io/docs/cpp/stable/classrerun_1_1RecordingStream.html#a555a7940a076c93d951de5b139d14918) to stream all logging data to disk.
 -   Visualize it via `rerun path/to/recording.rrd`
 
 You can also save a recording (or a portion of it) as you're visualizing it, directly from the viewer.
 
-⚠️ [RRD files don't yet handle versioning!](https://github.com/rerun-io/rerun/issues/873) ⚠️
+⚠️ [RRD files are not yet stable across different versions!](https://github.com/rerun-io/rerun/issues/6410) ⚠️
 
 ### Closing
 

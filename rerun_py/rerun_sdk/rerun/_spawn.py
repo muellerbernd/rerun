@@ -7,6 +7,8 @@ def _spawn_viewer(
     *,
     port: int = 9876,
     memory_limit: str = "75%",
+    hide_welcome_screen: bool = False,
+    detach_process: bool = True,
 ) -> None:
     """
     Internal helper to spawn a Rerun Viewer, listening on the given port.
@@ -23,6 +25,10 @@ def _spawn_viewer(
         An upper limit on how much memory the Rerun Viewer should use.
         When this limit is reached, Rerun will drop the oldest data.
         Example: `16GB` or `50%` (of system total).
+    hide_welcome_screen:
+        Hide the normal Rerun welcome screen.
+    detach_process:
+        Detach Rerun Viewer process from the application process.
 
     """
 
@@ -36,4 +42,6 @@ def _spawn_viewer(
         return
     new_env["RERUN_APP_ONLY"] = "true"
 
-    rerun_bindings.spawn(port=port, memory_limit=memory_limit)
+    rerun_bindings.spawn(
+        port=port, memory_limit=memory_limit, hide_welcome_screen=hide_welcome_screen, detach_process=detach_process
+    )

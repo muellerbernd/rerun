@@ -7,7 +7,7 @@ from uuid import uuid4
 import rerun as rr
 import rerun.blueprint as rrb
 
-README = """
+README = """\
 # Context Menu - Multi-selection
 
 For each of the multi-selection below, check the context menu content as per the following table.
@@ -17,7 +17,7 @@ For each of the multi-selection below, check the context menu content as per the
 ==========================================================
 ITEMS                               CONTEXT MENU CONTENT
 ==========================================================
-2x Space views                      Hide all
+2x Views                            Hide all
                                     Remove
 
                                     Expand all
@@ -38,7 +38,7 @@ ITEMS                               CONTEXT MENU CONTENT
                                     Expand all
                                     Collapse all
 ==========================================================
-Space view + 'box2d' data result    Hide all
+View + 'box2d' data result          Hide all
                                     Remove
 
                                     Expand all
@@ -49,7 +49,7 @@ Space view + 'box2d' data result    Hide all
                                     Expand all
                                     Collapse all
 
-                                    Add to new space view
+                                    Add to new view
 ----------------------------------------------------------
 + some component                    Hide all
 
@@ -75,18 +75,22 @@ def blueprint() -> rrb.BlueprintLike:
     )
 
 
-def log_some_space_views() -> None:
-    rr.set_time_sequence("frame_nr", 0)
+def log_some_views() -> None:
+    rr.set_time("frame_nr", sequence=0)
 
-    rr.log("boxes3d", rr.Boxes3D(centers=[[0, 0, 0], [1, 1.5, 1.15], [3, 2, 1]], half_sizes=[0.5, 1, 0.5] * 3))
-    rr.log("boxes2d", rr.Boxes2D(centers=[[0, 0], [1.3, 0.5], [3, 2]], half_sizes=[0.5, 1] * 3))
+    rr.log(
+        "boxes3d",
+        rr.Boxes3D(centers=[[0.0, 0.0, 0.0], [1.0, 1.5, 1.15], [3.0, 2.0, 1.0]], half_sizes=[0.5, 1.0, 0.5] * 3),
+    )
+    rr.log("boxes2d", rr.Boxes2D(centers=[[0.0, 0.0], [1.3, 0.5], [3.0, 2.0]], half_sizes=[0.5, 1.0] * 3))
 
 
 def run(args: Namespace) -> None:
-    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4(), default_blueprint=blueprint())
+    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4())
+    rr.send_blueprint(blueprint(), make_active=True, make_default=True)
 
     log_readme()
-    log_some_space_views()
+    log_some_views()
 
 
 if __name__ == "__main__":

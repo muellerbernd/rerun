@@ -6,7 +6,7 @@ Generate comparison between examples and their related screenshots.
 This script builds/gather RRDs and corresponding screenshots and displays
 them side-by-side. It pulls from the following sources:
 
-- The screenshots listed in .fbs files (crates/re_types/definitions/rerun/**/*.fbs),
+- The screenshots listed in .fbs files (crates/store/re_types/definitions/rerun/**/*.fbs),
   and the corresponding snippets in the docs (docs/snippets/*.rs)
 - The `rerun.io/viewer` examples, as built by the `re_dev_tools`/`build_examples` script.
 
@@ -24,11 +24,12 @@ import os
 import shutil
 import subprocess
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import partial
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import requests
 from jinja2 import Template
@@ -55,13 +56,17 @@ def measure_thumbnail(url: str) -> Any:
 
 
 def run(
-    args: list[str], *, env: dict[str, str] | None = None, timeout: int | None = None, cwd: str | Path | None = None
+    args: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    timeout: int | None = None,
+    cwd: str | Path | None = None,
 ) -> None:
     print(f"> {subprocess.list2cmdline(args)}")
     result = subprocess.run(args, env=env, cwd=cwd, timeout=timeout, check=False, capture_output=True, text=True)
-    assert (
-        result.returncode == 0
-    ), f"{subprocess.list2cmdline(args)} failed with exit-code {result.returncode}. Output:\n{result.stdout}\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"{subprocess.list2cmdline(args)} failed with exit-code {result.returncode}. Output:\n{result.stdout}\n{result.stderr}"
+    )
 
 
 @dataclass
@@ -80,7 +85,7 @@ def copy_static_assets(examples: list[Example]) -> None:
 
     # copy examples
     for example in examples:
-        dst = os.path.join(BASE_PATH, f"examples/{example.name}")
+        dst = BASE_PATH / "examples" / example.name
         shutil.copytree(
             STATIC_ASSETS,
             dst,
@@ -102,7 +107,7 @@ def build_python_sdk() -> None:
 
 
 def extract_snippet_urls_from_fbs() -> dict[str, str]:
-    fbs_path = SCRIPT_DIR_PATH.parent.parent / "crates" / "re_types" / "definitions" / "rerun"
+    fbs_path = SCRIPT_DIR_PATH.parent.parent / "crates" / "store" / "re_types" / "definitions" / "rerun"
 
     urls = {}
     for fbs in fbs_path.glob("**/*.fbs"):
@@ -125,7 +130,7 @@ SNIPPET_URLS = extract_snippet_urls_from_fbs()
 
 def build_snippets() -> None:
     cmd = [
-        str(SNIPPETS_DIR / "roundtrips.py"),
+        str(SNIPPETS_DIR / "compare_snippet_output.py"),
         "--no-py",
         "--no-cpp",
         "--no-py-build",
@@ -138,9 +143,11 @@ def build_snippets() -> None:
 
 def collect_snippets() -> Iterable[Example]:
     for name in sorted(SNIPPET_URLS.keys()):
-        rrd = SNIPPETS_DIR / f"{name}_rust.rrd"
-        assert rrd.exists(), f"Missing {rrd} for {name}"
-        yield Example(name=name, title=name, rrd=rrd, screenshot_url=SNIPPET_URLS[name])
+        rrd = SNIPPETS_DIR / "all" / f"{name}_rust.rrd"
+        if rrd.exists():
+            yield Example(name=name, title=name, rrd=rrd, screenshot_url=SNIPPET_URLS[name])
+        else:
+            print(f"WARNING: Missing {rrd} for {name}")
 
 
 # ====================================================================================================
@@ -153,16 +160,22 @@ def collect_snippets() -> Iterable[Example]:
 def build_examples() -> None:
     # fmt: off
     cmd = [
+        "pixi", "run", "-e", "examples",
         "cargo", "run", "--locked",
         "-p", "re_dev_tools", "--",
         "build-examples", "rrd", "example_data",
+        # TODO(andreas): nightly channel would be better, but the dependencies that requires make things hard to get to run.
+        "--channel", "main",
     ]
     run(cmd, cwd=RERUN_DIR)
 
     cmd = [
+        "pixi", "run", "-e", "examples",
         "cargo", "run", "--locked",
         "-p", "re_dev_tools", "--",
         "build-examples", "manifest", "example_data/examples_manifest.json",
+        # TODO(andreas): nightly channel would be better, but the dependencies that requires make things hard to get to run.
+        "--channel", "main",
     ]
     run(cmd, cwd=RERUN_DIR)
     # fmt: on
@@ -209,7 +222,7 @@ def render_examples(examples: list[Example]) -> None:
 
 
 class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
-    def end_headers(self):
+    def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
 
@@ -221,7 +234,7 @@ def serve_files() -> None:
             server_address=("127.0.0.1", 8080),
             RequestHandlerClass=partial(
                 CORSRequestHandler,
-                directory=BASE_PATH,
+                directory=str(BASE_PATH),
             ),
         )
         server.serve_forever()
@@ -232,7 +245,7 @@ def serve_files() -> None:
         os.environ["RUST_LOG"] = "rerun=warn"
 
         rr.init("rerun_example_screenshot_compare")
-        rr.serve(open_browser=False)
+        rr.serve_web(open_browser=False)
 
     threading.Thread(target=serve, daemon=True).start()
 

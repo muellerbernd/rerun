@@ -23,8 +23,8 @@ import yfinance as yf
 
 
 def auto_blueprint() -> rrb.BlueprintLike:
-    """A blueprint enabling auto space views, which matches the application default."""
-    return rrb.Blueprint(auto_space_views=True, auto_layout=True)
+    """A blueprint enabling auto views, which matches the application default."""
+    return rrb.Blueprint(auto_views=True, auto_layout=True)
 
 
 def one_stock(symbol: str) -> rrb.ContainerLike:
@@ -78,7 +78,7 @@ def stock_grid(symbols: list[str], dates: list[Any]) -> rrb.ContainerLike:
                 name=symbol,
             )
             for symbol in symbols
-        ]
+        ],
     )
 
 
@@ -86,8 +86,8 @@ def hide_panels(viewport: rrb.ContainerLike) -> rrb.BlueprintLike:
     """Wrap a viewport in a blueprint that hides the time and selection panels."""
     return rrb.Blueprint(
         viewport,
-        rrb.TimePanel(expanded=False),
-        rrb.SelectionPanel(expanded=False),
+        rrb.TimePanel(state="collapsed"),
+        rrb.SelectionPanel(state="collapsed"),
     )
 
 
@@ -104,18 +104,18 @@ brand_colors = {
 }
 
 
-def style_plot(symbol: str) -> rr.SeriesLine:
-    return rr.SeriesLine(
-        color=brand_colors[symbol],
-        name=symbol,
+def style_plot(symbol: str) -> rr.SeriesLines:
+    return rr.SeriesLines(
+        colors=brand_colors[symbol],
+        names=symbol,
     )
 
 
-def style_peak(symbol: str) -> rr.SeriesPoint:
-    return rr.SeriesPoint(
-        color=0xFF0000FF,
-        name=f"{symbol} (peak)",
-        marker="Up",
+def style_peak(symbol: str) -> rr.SeriesPoints:
+    return rr.SeriesPoints(
+        colors=0xFF0000FF,
+        names=f"{symbol} (peak)",
+        markers="up",
     )
 
 
@@ -173,8 +173,8 @@ def main() -> None:
     # In a future blueprint release, this can move into the blueprint as well
     for symbol in symbols:
         for day in dates:
-            rr.log(f"stocks/{symbol}/{day}", style_plot(symbol), timeless=True)
-            rr.log(f"stocks/{symbol}/peaks/{day}", style_peak(symbol), timeless=True)
+            rr.log(f"stocks/{symbol}/{day}", style_plot(symbol), static=True)
+            rr.log(f"stocks/{symbol}/peaks/{day}", style_peak(symbol), static=True)
 
     for symbol in symbols:
         stock = yf.Ticker(symbol)
@@ -194,7 +194,7 @@ def main() -> None:
         rr.log(
             f"stocks/{symbol}/info",
             rr.TextDocument(info_md, media_type=rr.MediaType.MARKDOWN),
-            timeless=True,
+            static=True,
         )
 
         for day in dates:
@@ -209,10 +209,10 @@ def main() -> None:
             peak = hist.High.idxmax()
 
             for row in hist.itertuples():
-                rr.set_time_seconds("time", row.Index.total_seconds())
-                rr.log(f"stocks/{symbol}/{day}", rr.Scalar(row.High))
+                rr.set_time("time", duration=row.Index)
+                rr.log(f"stocks/{symbol}/{day}", rr.Scalars(row.High))
                 if row.Index == peak:
-                    rr.log(f"stocks/{symbol}/peaks/{day}", rr.Scalar(row.High))
+                    rr.log(f"stocks/{symbol}/peaks/{day}", rr.Scalars(row.High))
 
     rr.script_teardown(args)
 

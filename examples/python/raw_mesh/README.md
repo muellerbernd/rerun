@@ -42,7 +42,7 @@ rr.log(
         vertex_texcoords=vertex_texcoords,
         albedo_texture=albedo_texture,
         triangle_indices=mesh.faces,
-        mesh_material=mesh_material,
+        albedo_factor=albedo_factor,
     ),
 )
 ```
@@ -61,7 +61,6 @@ rr.log(
 ## Run the code
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

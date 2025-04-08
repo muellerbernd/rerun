@@ -5,9 +5,7 @@ from typing import Any, cast
 
 import numpy.typing as npt
 
-from ..components import ViewCoordinatesLike
-from ..datatypes.mat3x3 import Mat3x3Like
-from ..datatypes.vec2d import Vec2D, Vec2DLike
+from ..datatypes import Mat3x3Like, Vec2D, Vec2DLike, ViewCoordinatesLike
 from ..error_utils import _send_warning_or_raise, catch_and_log_exceptions
 
 
@@ -26,6 +24,7 @@ class PinholeExt:
         principal_point: npt.ArrayLike | None = None,
         fov_y: float | None = None,
         aspect_ratio: float | None = None,
+        image_plane_distance: float | None = None,
     ) -> None:
         """
         Create a new instance of the Pinhole archetype.
@@ -85,6 +84,9 @@ class PinholeExt:
             Vertical field of view in radians.
         aspect_ratio
             Aspect ratio (width/height).
+        image_plane_distance:
+            The distance from the camera origin to the image plane when the projection is shown in a 3D viewer.
+            This is only used for visualization purposes, and does not affect the projection itself.
 
         """
 
@@ -131,13 +133,13 @@ class PinholeExt:
                         fl_x = focal_length[0]  # type: ignore[index]
                         fl_y = focal_length[1]  # type: ignore[index]
                     except Exception:
-                        raise ValueError("Expected focal_length to be one or two floats")
+                        raise ValueError("Expected focal_length to be one or two floats") from None
 
                 try:
                     u_cen = principal_point[0]  # type: ignore[index]
                     v_cen = principal_point[1]  # type: ignore[index]
                 except Exception:
-                    raise ValueError("Expected principal_point to be one or two floats")
+                    raise ValueError("Expected principal_point to be one or two floats") from None
 
                 image_from_camera = [[fl_x, 0, u_cen], [0, fl_y, v_cen], [0, 0, 1]]  # type: ignore[assignment]
             else:
@@ -148,7 +150,12 @@ class PinholeExt:
                 if fov_y is not None or aspect_ratio is not None:
                     _send_warning_or_raise("Both image_from_camera and fov_y or aspect_ratio set", 1)
 
-            self.__attrs_init__(image_from_camera=image_from_camera, resolution=resolution, camera_xyz=camera_xyz)
+            self.__attrs_init__(
+                image_from_camera=image_from_camera,
+                resolution=resolution,
+                camera_xyz=camera_xyz,
+                image_plane_distance=image_plane_distance,
+            )
             return
 
         self.__attrs_clear__()

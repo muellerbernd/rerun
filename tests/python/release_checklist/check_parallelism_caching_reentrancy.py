@@ -10,7 +10,7 @@ import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
 
-README = """
+README = """\
 # Parallelism, caching, reentrancy, etc
 
 This check simply puts a lot of pressure on all things parallel.
@@ -25,52 +25,47 @@ If nothing weird happens, you can close this recording.
 
 def blueprint() -> rrb.BlueprintLike:
     return rrb.Grid(
-        rrb.Vertical(*[rrb.TimeSeriesView(name="plots", origin="/plots") for _ in range(0, 3)]),
+        rrb.Vertical(*[rrb.TimeSeriesView(name="plots", origin="/plots") for _ in range(3)]),
         rrb.Vertical(*[
             rrb.TimeSeriesView(
                 name="plots",
                 origin="/plots",
                 time_ranges=rrb.VisibleTimeRange(
                     "frame_nr",
-                    rr.TimeRange(
-                        start=rr.TimeRangeBoundary(rr.TimeRangeBoundaryKind.RelativeToTimeCursor, 50 - i * 10),
-                        end=rr.TimeRangeBoundary(rr.TimeRangeBoundaryKind.RelativeToTimeCursor, 50 - i * 10 + 10),
-                    ),
+                    start=rrb.TimeRangeBoundary.cursor_relative(seq=50 - i * 10),
+                    end=rrb.TimeRangeBoundary.cursor_relative(seq=50 - i * 10 + 10),
                 ),
             )
-            for i in range(0, 10)
+            for i in range(10)
         ]),
-        rrb.Vertical(*[rrb.TextLogView(name="logs", origin="/text") for _ in range(0, 3)]),
-        rrb.Vertical(*[rrb.Spatial2DView(name="2D", origin="/2D") for _ in range(0, 3)]),
+        rrb.Vertical(*[rrb.TextLogView(name="logs", origin="/text") for _ in range(3)]),
+        rrb.Vertical(*[rrb.Spatial2DView(name="2D", origin="/2D") for _ in range(3)]),
         rrb.Vertical(*[
             rrb.Spatial2DView(
                 name="2D",
                 origin="/2D",
                 time_ranges=rrb.VisibleTimeRange(
                     "frame_nr",
-                    rr.TimeRange(
-                        start=rr.TimeRangeBoundary(rr.TimeRangeBoundaryKind.Infinite, 0),
-                        end=rr.TimeRangeBoundary(rr.TimeRangeBoundaryKind.RelativeToTimeCursor, 0),
-                    ),
+                    start=rrb.TimeRangeBoundary.infinite(),
+                    end=rrb.TimeRangeBoundary.cursor_relative(),
                 ),
             )
-            for _ in range(0, 3)
+            for _ in range(3)
         ]),
-        rrb.Vertical(*[rrb.Spatial3DView(name="3D", origin="/3D") for _ in range(0, 3)]),
+        rrb.Vertical(*[rrb.Spatial3DView(name="3D", origin="/3D") for _ in range(3)]),
         rrb.Vertical(*[
             rrb.Spatial3DView(
                 name="3D",
                 origin="/3D",
                 time_ranges=rrb.VisibleTimeRange(
                     "frame_nr",
-                    rr.TimeRange(
-                        start=rr.TimeRangeBoundary(rr.TimeRangeBoundaryKind.Infinite, 0),
-                        end=rr.TimeRangeBoundary(rr.TimeRangeBoundaryKind.Infinite, 0),
-                    ),
+                    start=rrb.TimeRangeBoundary.infinite(),
+                    end=rrb.TimeRangeBoundary.infinite(),
                 ),
             )
-            for _ in range(0, 3)
+            for _ in range(3)
         ]),
+        rrb.TextDocumentView(origin="readme"),
         grid_columns=4,
     )
 
@@ -80,8 +75,8 @@ def log_readme() -> None:
 
 
 def log_text_logs() -> None:
-    for t in range(0, 100):
-        rr.set_time_sequence("frame_nr", t)
+    for t in range(100):
+        rr.set_time("frame_nr", sequence=t)
         rr.log("text", rr.TextLog("Something good happened", level=rr.TextLogLevel.INFO))
         rr.log("text", rr.TextLog("Something bad happened", level=rr.TextLogLevel.ERROR))
 
@@ -89,25 +84,25 @@ def log_text_logs() -> None:
 def log_plots() -> None:
     from math import cos, sin, tau
 
-    rr.log("plots/sin", rr.SeriesLine(color=[255, 0, 0], name="sin(0.01t)"), timeless=True)
-    rr.log("plots/cos", rr.SeriesLine(color=[0, 255, 0], name="cos(0.01t)"), timeless=True)
+    rr.log("plots/sin", rr.SeriesLines(colors=[255, 0, 0], names="sin(0.01t)"), static=True)
+    rr.log("plots/cos", rr.SeriesLines(colors=[0, 255, 0], names="cos(0.01t)"), static=True)
 
-    for t in range(0, int(tau * 2 * 10.0)):
-        rr.set_time_sequence("frame_nr", t)
+    for t in range(int(tau * 2 * 10.0)):
+        rr.set_time("frame_nr", sequence=t)
 
         sin_of_t = sin(float(t) / 10.0)
-        rr.log("plots/sin", rr.Scalar(sin_of_t))
+        rr.log("plots/sin", rr.Scalars(sin_of_t))
 
         cos_of_t = cos(float(t) / 10.0)
-        rr.log("plots/cos", rr.Scalar(cos_of_t))
+        rr.log("plots/cos", rr.Scalars(cos_of_t))
 
 
 def log_spatial() -> None:
-    for t in range(0, 100):
-        rr.set_time_sequence("frame_nr", t)
+    for t in range(100):
+        rr.set_time("frame_nr", sequence=t)
 
         positions3d = [
-            [math.sin((i + t) * 0.2) * 5, math.cos((i + t) * 0.2) * 5 - 10.0, i * 0.4 - 5.0] for i in range(0, 100)
+            [math.sin((i + t) * 0.2) * 5, math.cos((i + t) * 0.2) * 5 - 10.0, i * 0.4 - 5.0] for i in range(100)
         ]
 
         rr.log(
@@ -144,7 +139,7 @@ def log_spatial() -> None:
             ),
         )
 
-        positions2d = [[math.sin(i * math.tau / 100.0) * t, math.cos(i * math.tau / 100.0) * t] for i in range(0, 100)]
+        positions2d = [[math.sin(i * math.tau / 100.0) * t, math.cos(i * math.tau / 100.0) * t] for i in range(100)]
 
         rr.log(
             "2D/points",
@@ -182,7 +177,8 @@ def log_spatial() -> None:
 
 
 def run(args: Namespace) -> None:
-    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4(), default_blueprint=blueprint())
+    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4())
+    rr.send_blueprint(blueprint(), make_active=True, make_default=True)
 
     log_readme()
     log_text_logs()

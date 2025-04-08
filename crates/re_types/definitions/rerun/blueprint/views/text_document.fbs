@@ -1,9 +1,0 @@
-include "rerun/attributes.fbs";
-
-namespace rerun.blueprint.views;
-
-/// A text document view.
-table TextDocumentView (
-    "attr.rerun.view_identifier": "TextDocument"
-) {
-}

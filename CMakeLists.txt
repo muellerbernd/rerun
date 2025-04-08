@@ -26,6 +26,8 @@ function(rerun_strict_warning_settings target)
         # TODO(andreas): Try to enable /Wall
         target_compile_options(${target} PRIVATE /W4)
 
+        target_compile_options(${target} PRIVATE /we4996) # Using deprecated functions is an error
+
         if(BUILD_SHARED_LIBS)
             # If we are building as shared libs, we are going to have to disable the C4251
             # warning, as it would trigger for any datatype derived from a STL class
@@ -37,7 +39,9 @@ function(rerun_strict_warning_settings target)
         # CMAKE_COMPILE_WARNING_AS_ERROR is only directly supported starting in CMake `3.24`
         # https://cmake.org/cmake/help/latest/prop_tgt/COMPILE_WARNING_AS_ERROR.html
         if(CMAKE_COMPILE_WARNING_AS_ERROR)
-            target_compile_options(${target} PRIVATE /WX)
+            target_compile_options(${target} PRIVATE /WX
+                /w15038 # Initialization order. https://learn.microsoft.com/en-us/cpp/error-messages/compiler-warnings/c5038
+            )
         endif()
 
         if(RERUN_USE_ASAN)
@@ -49,6 +53,7 @@ function(rerun_strict_warning_settings target)
             -Wall
             -Wcast-align
             -Wcast-qual
+            -Werror=deprecated-declarations
             -Wextra
             -Wformat=2
             -Wmissing-include-dirs
@@ -127,20 +132,8 @@ if(MSVC)
     add_compile_options("/MP")
 endif()
 
-# Arrow requires a C++17 compliant compiler.
-if(NOT DEFINED CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD 17)
-endif()
-
 # Signal to all our build scripts that we're inside the Rerun repository.
 set(RERUN_REPOSITORY YES)
-
-# Set version number.
-# Read it from the Rust toml with a regex so we don't have another place to maintain!
-file(READ "Cargo.toml" CARGO_TOML)
-string(REGEX MATCH "\nversion = \"([a-z0-9\.\+-]+)\"\n" _ ${CARGO_TOML})
-set(RERUN_VERSION ${CMAKE_MATCH_1})
-message(STATUS "Rerun version ${RERUN_VERSION}")
 
 # ------------------------------------------------------------------------------
 # Loguru logging library (https://github.com/emilk/loguru):
@@ -173,7 +166,7 @@ if(NOT WIN32)
 endif()
 
 # ------------------------------------------------------------------------------
-add_subdirectory(crates/rerun_c) # The Rerun C SDK library, must be included before the C++ SDK.
+add_subdirectory(crates/top/rerun_c) # The Rerun C SDK library, must be included before the C++ SDK.
 add_subdirectory(rerun_cpp) # The Rerun C++ SDK library.
 add_subdirectory(examples/cpp)
 add_subdirectory(tests/cpp)

@@ -8,12 +8,10 @@ import pytest
 import rerun as rr
 import torch
 from rerun.components import (
-    DrawOrderLike,
     LineStrip2DArrayLike,
     LineStrip2DBatch,
-    RadiusArrayLike,
 )
-from rerun.datatypes import ClassIdArrayLike, Rgba32ArrayLike, Utf8ArrayLike, Vec2D
+from rerun.datatypes import ClassIdArrayLike, Float32ArrayLike, Rgba32ArrayLike, Utf8ArrayLike, Vec2D
 
 from .common_arrays import (
     class_ids_arrays,
@@ -33,8 +31,8 @@ strips_arrays: list[LineStrip2DArrayLike] = [
     [],
     np.array([]),
     [
-        [[0, 0], [2, 1], [4, -1], [6, 0]],  # type: ignore[list-item]
-        [[0, 3], [1, 4], [2, 2], [3, 4], [4, 2], [5, 4], [6, 3]],  # type: ignore[list-item]
+        [[0, 0], [2, 1], [4, -1], [6, 0]],
+        [[0, 3], [1, 4], [2, 2], [3, 4], [4, 2], [5, 4], [6, 3]],
     ],
     [
         [Vec2D([0, 0]), (2, 1), [4, -1], (6, 0)],  # type: ignore[list-item]
@@ -83,10 +81,10 @@ def test_line_strips2d() -> None:
 
         # make Pyright happy as it's apparently not able to track typing info trough zip_longest
         strips = cast(LineStrip2DArrayLike, strips)
-        radii = cast(Optional[RadiusArrayLike], radii)
+        radii = cast(Optional[Float32ArrayLike], radii)
         colors = cast(Optional[Rgba32ArrayLike], colors)
         labels = cast(Optional[Utf8ArrayLike], labels)
-        draw_order = cast(Optional[DrawOrderLike], draw_order)
+        draw_order = cast(Optional[Float32ArrayLike], draw_order)
         class_ids = cast(Optional[ClassIdArrayLike], class_ids)
 
         print(
@@ -97,7 +95,7 @@ def test_line_strips2d() -> None:
             f"    labels={labels!r}\n"
             f"    draw_order={draw_order!r}\n"
             f"    class_ids={class_ids!r}\n"
-            f")"
+            f")",
         )
         arch = rr.LineStrips2D(
             strips,
@@ -137,7 +135,7 @@ def test_single_line_strip2d() -> None:
     # Regression test for #3643
     # Single linestrip can be passed and is not interpreted as batch of zero sized line strips.
     reference = rr.LineStrips2D([rr.components.LineStrip2D([[0, 0], [1, 1]])])
-    assert len(reference.strips) == 1
+    assert reference.strips is not None and len(reference.strips) == 1
     assert reference == rr.LineStrips2D(rr.components.LineStrip2D([[0, 0], [1, 1]]))
     assert reference == rr.LineStrips2D([[[0, 0], [1, 1]]])
     assert reference == rr.LineStrips2D([[0, 0], [1, 1]])
@@ -170,7 +168,7 @@ def test_line_strip2d_invalid_shapes() -> None:
             np.array([
                 [[0, 0], (2, 1), [4, -1], (6, 0)],
                 [[0, 3], (1, 4), [2, 2], (3, 4), [4, 2], (5, 4), [6, 3]],
-            ])
+            ]),
         )
     with pytest.raises(ValueError):
         rr.LineStrips2D(

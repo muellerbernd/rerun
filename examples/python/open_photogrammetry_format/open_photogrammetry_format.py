@@ -32,7 +32,7 @@ The full source code for this example is available
 
 ### Links
 * [OPF specification](https://pix4d.github.io/opf-spec/index.html)
-* [Dataset source](https://support.pix4d.com/hc/en-us/articles/360000235126-Example-projects-real-photogrammetry-data#OPF1)
+* [Dataset source](https://support.pix4d.com/hc/en-us/articles/360000235126#OPF)
 * [pyopf](https://github.com/Pix4D/pyopf)
 """
 
@@ -44,13 +44,12 @@ class DatasetSpec:
 
 
 DATASETS = {
-    "olympic": DatasetSpec(
-        "olympic_flame", "https://s3.amazonaws.com/mics.pix4d.com/example_datasets/olympic_flame.zip"
-    ),
+    "olympic": DatasetSpec("olympic_flame", "https://data.pix4d.com/misc/example_datasets/olympic_flame.zip"),
     "rainwater": DatasetSpec(
-        "catch_rainwater_demo", "https://s3.amazonaws.com/mics.pix4d.com/example_datasets/catch_rainwater_demo.zip"
+        "catch_rainwater_demo",
+        "https://data.pix4d.com/misc/example_datasets/catch_rainwater_demo.zip",
     ),
-    "rivaz": DatasetSpec("rivaz_demo", "https://s3.amazonaws.com/mics.pix4d.com/example_datasets/rivaz_demo.zip"),
+    "rivaz": DatasetSpec("rivaz_demo", "https://data.pix4d.com/misc/example_datasets/rivaz_demo.zip"),
 }
 DATASET_DIR: Final = Path(__file__).parent / "dataset"
 
@@ -139,13 +138,13 @@ class OPFProject:
             zip(
                 self.project.camera_list.cameras,
                 self.project.calibration.calibrated_cameras.cameras,
-            )
+            ),
         ):
             if not str(camera.uri).endswith(".jpg"):
                 continue
 
             if self.log_as_frames:
-                rr.set_time_sequence("image", i)
+                rr.set_time("image", sequence=i)
                 entity = "world/cameras"
             else:
                 entity = f"world/cameras/{i}"
@@ -191,9 +190,9 @@ class OPFProject:
 
             if jpeg_quality is not None:
                 with Image.open(self.path.parent / camera.uri) as img:
-                    rr.log(entity + "/image/rgb", rr.Image(np.array(img)).compress(jpeg_quality=jpeg_quality))
+                    rr.log(entity + "/image/rgb", rr.Image(img).compress(jpeg_quality=jpeg_quality))
             else:
-                rr.log(entity + "/image/rgb", rr.ImageEncoded(path=self.path.parent / camera.uri))
+                rr.log(entity + "/image/rgb", rr.EncodedImage(path=self.path.parent / camera.uri))
 
 
 def main() -> None:
@@ -201,7 +200,7 @@ def main() -> None:
     logging.getLogger().setLevel("INFO")
 
     parser = argparse.ArgumentParser(
-        description="Load an Open Photogrammetry Format (OPF) project and display the cameras and point cloud."
+        description="Load an Open Photogrammetry Format (OPF) project and display the cameras and point cloud.",
     )
     parser.add_argument(
         "--dataset",
@@ -232,7 +231,7 @@ def main() -> None:
 
     # display everything in Rerun
     rr.script_setup(args, "rerun_example_open_photogrammetry_format")
-    rr.log("description", rr.TextDocument(DESCRIPTION, media_type=rr.MediaType.MARKDOWN), timeless=True)
+    rr.log("description", rr.TextDocument(DESCRIPTION, media_type=rr.MediaType.MARKDOWN), static=True)
     rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
     project.log_point_cloud()
     project.log_calibrated_cameras(jpeg_quality=args.jpeg_quality)

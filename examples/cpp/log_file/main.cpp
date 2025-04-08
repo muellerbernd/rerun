@@ -8,7 +8,7 @@
 #include <rerun/third_party/cxxopts.hpp>
 
 int main(int argc, char** argv) {
-    // Create a new `RecordingStream` which sends data over TCP to the viewer process.
+    // Create a new `RecordingStream` which sends data over gRPC to the viewer process.
     const auto rec = rerun::RecordingStream("rerun_example_log_file");
 
     cxxopts::Options options(
@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
     if (args["spawn"].as<bool>()) {
         rec.spawn().exit_on_failure();
     } else if (args["connect"].as<bool>()) {
-        rec.connect().exit_on_failure();
+        rec.connect_grpc().exit_on_failure();
     } else if (args["stdout"].as<bool>()) {
         rec.to_stdout().exit_on_failure();
     } else if (args.count("save")) {

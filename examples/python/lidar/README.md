@@ -23,7 +23,7 @@ This example demonstrates the ability to read and visualize LiDAR data from the 
 The scenes in this dataset encompass data collected from a comprehensive suite of sensors on autonomous vehicles, including 6 cameras, 1 LIDAR, 5 RADAR, GPS and IMU sensors.
 
 
-It's important to note that in this example, only the LiDAR data is visualized. For a more extensive example including other sensors and annotations check out the [nuScenes example](https://www.rerun.io/examples/robotics/nuscenes).
+It's important to note that in this example, only the LiDAR data is visualized. For a more extensive example including other sensors and annotations check out the [nuScenes example](https://www.rerun.io/examples/robotics/nuscenes_dataset).
 
 ## Logging and visualizing with Rerun
 
@@ -31,7 +31,7 @@ The visualization in this example was created with just the following lines.
 
 
 ```python
-rr.set_time_seconds("timestamp", sample_data["timestamp"] * 1e-6) # Setting the time
+rr.set_time("timestamp", timestamp=sample_data["timestamp"] * 1e-6) # Setting the time
 rr.log("world/lidar", rr.Points3D(points, colors=point_colors)) # Log the 3D data
 ```
 
@@ -41,7 +41,6 @@ In the following code, we first establish the desired time frame and then procee
 ## Run the code
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

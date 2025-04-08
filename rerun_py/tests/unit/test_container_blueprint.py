@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import itertools
-from typing import Any, Optional, Sequence, cast
+from collections.abc import Sequence
+from typing import Any, Optional, cast
 
 from rerun.blueprint.archetypes.container_blueprint import ContainerBlueprint
 from rerun.blueprint.components.active_tab import ActiveTab, ActiveTabBatch
-from rerun.blueprint.components.column_share import ColumnShare, ColumnShareArrayLike, ColumnShareBatch
+from rerun.blueprint.components.column_share import ColumnShare, ColumnShareBatch
 from rerun.blueprint.components.container_kind import ContainerKind, ContainerKindBatch, ContainerKindLike
-from rerun.blueprint.components.grid_columns import GridColumns, GridColumnsBatch, GridColumnsLike
+from rerun.blueprint.components.grid_columns import GridColumns, GridColumnsBatch
 from rerun.blueprint.components.included_content import IncludedContentBatch
-from rerun.blueprint.components.row_share import RowShare, RowShareArrayLike, RowShareBatch
-from rerun.blueprint.components.visible import Visible, VisibleBatch, VisibleLike
+from rerun.blueprint.components.row_share import RowShare, RowShareBatch
 from rerun.components.name import Name, NameBatch
+from rerun.components.visible import Visible, VisibleBatch
+from rerun.datatypes.bool import BoolLike
 from rerun.datatypes.entity_path import EntityPath, EntityPathArrayLike, EntityPathLike
+from rerun.datatypes.float32 import Float32ArrayLike
+from rerun.datatypes.uint32 import UInt32ArrayLike
 from rerun.datatypes.utf8 import Utf8Like
 
 from .common_arrays import none_empty_or_value
@@ -33,8 +37,8 @@ def test_container_blueprint() -> None:
     contents_arrays: Sequence[Any] = [
         None,
         [],
-        ["space_view/1234", "container/5678"],
-        [EntityPath("space_view/1234"), EntityPath("container/5678")],
+        ["view/1234", "container/5678"],
+        [EntityPath("view/1234"), EntityPath("container/5678")],
     ]
 
     col_shares_arrays = [
@@ -51,9 +55,9 @@ def test_container_blueprint() -> None:
 
     active_tab_arrays = [
         None,
-        "space_view/1234",
-        ActiveTab("space_view/1234"),
-        ActiveTab(EntityPath("space_view/1234")),
+        "view/1234",
+        ActiveTab("view/1234"),
+        ActiveTab(EntityPath("view/1234")),
     ]
 
     visible_arrays = [
@@ -94,11 +98,11 @@ def test_container_blueprint() -> None:
         container_kind = cast(ContainerKindLike, container_kind)
         display_name = cast(Optional[Utf8Like], display_name)
         contents = cast(Optional[EntityPathArrayLike], contents)
-        col_shares = cast(Optional[ColumnShareArrayLike], col_shares)
-        row_shares = cast(Optional[RowShareArrayLike], row_shares)
+        col_shares = cast(Optional[Float32ArrayLike], col_shares)
+        row_shares = cast(Optional[Float32ArrayLike], row_shares)
         active_tab = cast(Optional[EntityPathLike], active_tab)
-        visible = cast(Optional[VisibleLike], visible)
-        grid_columns = cast(Optional[GridColumnsLike], grid_columns)
+        visible = cast(Optional[BoolLike], visible)
+        grid_columns = cast(Optional[UInt32ArrayLike], grid_columns)
 
         print(
             "rr.ContainerBlueprint(\n",
@@ -124,15 +128,15 @@ def test_container_blueprint() -> None:
         )
         print(f"{arch}\n")
 
-        assert arch.container_kind == ContainerKindBatch._required(
-            none_empty_or_value(container_kind, ContainerKind.Tabs)
+        assert arch.container_kind == ContainerKindBatch._converter(
+            none_empty_or_value(container_kind, ContainerKind.Tabs),
         )
-        assert arch.display_name == NameBatch._optional(none_empty_or_value(display_name, Name("my container")))
-        assert arch.contents == IncludedContentBatch._optional(none_empty_or_value(contents, contents_arrays[-1]))
-        assert arch.col_shares == ColumnShareBatch._optional(none_empty_or_value(col_shares, col_shares_arrays[-1]))
-        assert arch.row_shares == RowShareBatch._optional(none_empty_or_value(row_shares, row_shares_arrays[-1]))
-        assert arch.active_tab == ActiveTabBatch._optional(none_empty_or_value(active_tab, active_tab_arrays[-1]))
-        assert arch.visible == VisibleBatch._optional(none_empty_or_value(visible, visible_arrays[-1]))
-        assert arch.grid_columns == GridColumnsBatch._optional(
-            none_empty_or_value(grid_columns, grid_columns_arrays[-1])
+        assert arch.display_name == NameBatch._converter(none_empty_or_value(display_name, Name("my container")))
+        assert arch.contents == IncludedContentBatch._converter(none_empty_or_value(contents, contents_arrays[-1]))
+        assert arch.col_shares == ColumnShareBatch._converter(none_empty_or_value(col_shares, col_shares_arrays[-1]))
+        assert arch.row_shares == RowShareBatch._converter(none_empty_or_value(row_shares, row_shares_arrays[-1]))
+        assert arch.active_tab == ActiveTabBatch._converter(none_empty_or_value(active_tab, active_tab_arrays[-1]))
+        assert arch.visible == VisibleBatch._converter(none_empty_or_value(visible, visible_arrays[-1]))
+        assert arch.grid_columns == GridColumnsBatch._converter(
+            none_empty_or_value(grid_columns, grid_columns_arrays[-1]),
         )

@@ -191,7 +191,7 @@ class Rect {
 
     Rect with_color(Color color) && {
         _color = color;
-        return std::move(*this);
+        return std::move(*this); // `*this` is always an lvalue, so we have to move it to avoid a copy.
     }
 }
 ```
@@ -215,6 +215,8 @@ Preprocessor directives/macros are usually prefixed with `RR_`
 
 Include what you use: if you use `std::vector`, then include `<vector>` - don't depend on a transitive include.
 
+We prefer the "data, length" parameter order, e.g. `void foo(const void* data, size_t len)` or `void image(const f32* data, Resolution resolution)`.
+
 
 ## Naming
 We prefer `snake_case` to `kebab-case` for most things (e.g. crate names, crate features, …). `snake_case` is a valid identifier in almost any programming language, while `kebab-case` is not. This means one can use the same `snake_case` identifier everywhere, and not think about whether it needs to be written as `snake_case` in some circumstances.
@@ -226,6 +228,19 @@ Be terse when it doesn't hurt readability. BAD: `message_identifier`. GOOD: `msg
 Avoid negations in names. A lot of people struggle with double negations, so things like `non_blocking = false` and `if !non_blocking { … }` can become a source of confusion and will slow down most readers. So prefer `connected` over `disconnected`, `initialized` over `uninitialized` etc.
 
 For UI functions (functions taking an `&mut egui::Ui` argument), we use the name `ui` or `_ui` suffix, e.g. `blueprint_ui(…)` or `blueprint.ui(…)`.
+
+### Units
+* When in doubt, be explicit (`duration_secs: f32` is better than `duration: f32`)
+* All things being equal, prefer SI base units (seconds over milliseconds, Hz over RPM, etc)
+* When precision matters, prefer `nanos: i64` over `secs: f64`
+* Store angles in radians (but you may print/display them as degrees)
+
+Follow the conventions set by Rust stdlib:
+* `secs` instead of `seconds`
+* `millis` instead of `ms` or `milliseconds`
+* `micros` instead of `us` or `microseconds`
+* `nanos` instead of `ns` or `nanoseconds`
+
 
 ### Spaces
 Points, vectors, rays etc all live in different _spaces_. Whenever there is room for ambiguity, we explicitly state which space something is in, e.g. with `ray_in_world`.

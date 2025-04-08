@@ -52,10 +52,10 @@ rr.log(
         vertex_colors=mesh.visual.vertex_colors,
         triangle_indices=mesh.faces,
     ),
-    timeless=True,
+    static=True,
 )
 ```
-Here, the mesh is logged to the world/mesh entity and is marked as timeless, since it does not change in the context of this visualization.
+Here, the mesh is logged to the world/mesh entity and is marked as static, since it does not change in the context of this visualization.
 
 ### Logging 3D bounding boxes
 Here we loop through the data and add bounding boxes to all the items found.
@@ -66,21 +66,13 @@ for i, label_info in enumerate(annotation["data"]):
         rr.Boxes3D(
             half_sizes=half_size,
             centers=centroid,
-            rotations=rr.Quaternion(xyzw=rot.as_quat()),
             labels=label,
             colors=colors[i],
         ),
-        timeless=True,
+        rr.InstancePoses3D(mat3x3=mat3x3),
+        static=True,
     )
 ```
-<!--
-# Projecting 3D bounding boxes to 2D and logging the line segments
-```python
-for i, (label, bbox_2d) in enumerate(zip(bbox_labels, bboxes_2d)):
-    log_line_segments(f"{entity_id}/bbox-2D-segments/{label}", bbox_2d.reshape(-1, 2), colors[i], label)
-```
- -->
-
 
 ### Setting up the default blueprint
 
@@ -121,7 +113,6 @@ In particular, we want to reproject 3D annotations onto the 2D camera views. To 
 
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun
@@ -135,6 +126,6 @@ pip install -e examples/python/arkit_scenes
 
 To run this example use
 ```bash
-python -m airkit_scenes
+python -m arkit_scenes
 ```
 

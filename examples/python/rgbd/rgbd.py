@@ -2,7 +2,7 @@
 """
 Example using an example depth dataset from NYU.
 
-https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html
+https://cs.nyu.edu/~fergus/datasets/nyu_depth_v2.html
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ The full source code for this example is available [on GitHub](https://github.co
 DEPTH_IMAGE_SCALING: Final = 1e4
 DATASET_DIR: Final = Path(os.path.dirname(__file__)) / "dataset"
 DATASET_URL_BASE: Final = "https://static.rerun.io/rgbd_dataset"
-DATASET_URL_BASE_ALTERNATE: Final = "http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2"
+DATASET_URL_BASE_ALTERNATE: Final = "https://cs.nyu.edu/~fergus/datasets/nyu_depth_v2.html"
 AVAILABLE_RECORDINGS: Final = ["cafe", "basements", "studies", "office_kitchens", "playroooms"]
 
 
@@ -44,13 +44,11 @@ def parse_timestamp(filename: str) -> datetime:
     return datetime.fromtimestamp(float(time))
 
 
-def read_image_rgb(buf: bytes) -> npt.NDArray[np.uint8]:
+def read_image_bgr(buf: bytes) -> npt.NDArray[np.uint8]:
     """Decode an image provided in `buf`, and interpret it as RGB data."""
     np_buf: npt.NDArray[np.uint8] = np.ndarray(shape=(1, len(buf)), dtype=np.uint8, buffer=buf)
-    # OpenCV reads images in BGR rather than RGB format
-    img_bgr = cv2.imdecode(np_buf, cv2.IMREAD_COLOR)
-    img_rgb: npt.NDArray[Any] = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    return img_rgb
+    img_bgr: npt.NDArray[Any] = cv2.imdecode(np_buf, cv2.IMREAD_COLOR)
+    return img_bgr
 
 
 def read_depth_image(buf: bytes) -> npt.NDArray[Any]:
@@ -81,12 +79,12 @@ def log_nyud_data(recording_path: Path, subset_idx: int, frames: int) -> None:
             files_with_timestamps = files_with_timestamps[:frames]
 
         for time, f in files_with_timestamps:
-            rr.set_time_seconds("time", time.timestamp())
+            rr.set_time("time", timestamp=time.timestamp())
 
             if f.filename.endswith(".ppm"):
                 buf = archive.read(f)
-                img_rgb = read_image_rgb(buf)
-                rr.log("world/camera/image/rgb", rr.Image(img_rgb).compress(jpeg_quality=95))
+                img_bgr = read_image_bgr(buf)
+                rr.log("world/camera/image/rgb", rr.Image(img_bgr, color_model="BGR").compress(jpeg_quality=95))
 
             elif f.filename.endswith(".pgm"):
                 buf = archive.read(f)
@@ -135,7 +133,7 @@ def download_progress(url: str, dst: Path) -> None:
     """
     Download file with tqdm progress bar.
 
-    From: https://gist.github.com/yanqd0/c13ed29e29432e3cf3e7c38467f42f51
+    From: <https://gist.github.com/yanqd0/c13ed29e29432e3cf3e7c38467f42f51>
     """
     resp = requests.get(url, stream=True)
     if resp.status_code != 200:
@@ -143,13 +141,16 @@ def download_progress(url: str, dst: Path) -> None:
     total = int(resp.headers.get("content-length", 0))
     chunk_size = 1024 * 1024
     # Can also replace 'file' with a io.BytesIO object
-    with open(dst, "wb") as file, tqdm(
-        desc=dst.name,
-        total=total,
-        unit="iB",
-        unit_scale=True,
-        unit_divisor=1024,
-    ) as bar:
+    with (
+        open(dst, "wb") as file,
+        tqdm(
+            desc=dst.name,
+            total=total,
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as bar,
+    ):
         for data in resp.iter_content(chunk_size=chunk_size):
             size = file.write(data)
             bar.update(size)
@@ -166,7 +167,10 @@ def main() -> None:
     )
     parser.add_argument("--subset-idx", type=int, default=0, help="The index of the subset of the recording to use.")
     parser.add_argument(
-        "--frames", type=int, default=sys.maxsize, help="If specified, limits the number of frames logged"
+        "--frames",
+        type=int,
+        default=sys.maxsize,
+        help="If specified, limits the number of frames logged",
     )
     rr.script_add_args(parser)
     args = parser.parse_args()
@@ -175,25 +179,33 @@ def main() -> None:
         args,
         "rerun_example_rgbd",
         default_blueprint=rrb.Horizontal(
-            rrb.Spatial3DView(name="3D", origin="world"),
+            rrb.Vertical(
+                rrb.Spatial3DView(name="3D", origin="world"),
+                rrb.TextDocumentView(name="Description", origin="/description"),
+                row_shares=[7, 3],
+            ),
             rrb.Vertical(
                 # Put the origin for both 2D spaces where the pinhole is logged. Doing so allows them to understand how they're connected to the 3D space.
                 # This enables interactions like clicking on a point in the 3D space to show the corresponding point in the 2D spaces and vice versa.
-                rrb.Spatial2DView(name="RGB & Depth", origin="world/camera/image"),
+                rrb.Spatial2DView(
+                    name="RGB & Depth",
+                    origin="world/camera/image",
+                    overrides={"world/camera/image/rgb": rr.Image.from_fields(opacity=0.5)},
+                ),
                 rrb.Tabs(
                     rrb.Spatial2DView(name="RGB", origin="world/camera/image", contents="world/camera/image/rgb"),
                     rrb.Spatial2DView(name="Depth", origin="world/camera/image", contents="world/camera/image/depth"),
                 ),
-                rrb.TextDocumentView(name="Description", origin="/description"),
                 name="2D",
                 row_shares=[3, 3, 2],
             ),
             column_shares=[2, 1],
         ),
     )
+
     recording_path = ensure_recording_downloaded(args.recording)
 
-    rr.log("description", rr.TextDocument(DESCRIPTION, media_type=rr.MediaType.MARKDOWN), timeless=True)
+    rr.log("description", rr.TextDocument(DESCRIPTION, media_type=rr.MediaType.MARKDOWN), static=True)
 
     log_nyud_data(
         recording_path=recording_path,

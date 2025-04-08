@@ -39,7 +39,7 @@ fn run(rec: &rerun::RecordingStream, args: &Args) -> anyhow::Result<()> {
     const WIDTH_M: f32 = 0.4;
     const WIDTH_H: f32 = 0.6;
 
-    rec.log_static("world", &rerun::ViewCoordinates::RIGHT_HAND_Y_UP)?;
+    rec.log_static("world", &rerun::ViewCoordinates::RIGHT_HAND_Y_UP())?;
 
     rec.log_static(
         "world/frame",
@@ -67,7 +67,7 @@ fn run(rec: &rerun::RecordingStream, args: &Args) -> anyhow::Result<()> {
         let pos = tip(angle * TAU, length);
         let color = color(angle, blue);
 
-        rec.set_time_seconds("sim_time", step as f64);
+        rec.set_duration_secs("sim_time", step as f64);
 
         rec.log(
             format!("world/{name}_pt"),

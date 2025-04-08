@@ -5,7 +5,7 @@ thumbnail = "https://static.rerun.io/face-tracking/f798733b72c703ee82cc946df39f3
 thumbnail_dimensions = [480, 480]
 -->
 
-Use the [MediaPipe](https://google.github.io/mediapipe/) Face Detector and Landmarker solutions to detect and track a human face in image, video, and camera stream.
+Use the [MediaPipe](https://github.com/google-ai-edge/mediapipe) Face Detector and Landmarker solutions to detect and track a human face in image, video, and camera stream.
 
 
 <picture>
@@ -17,7 +17,7 @@ Use the [MediaPipe](https://google.github.io/mediapipe/) Face Detector and Landm
 </picture>
 
 ## Used Rerun types
-[`Image`](https://www.rerun.io/docs/reference/types/archetypes/image), [`Points2D`](https://www.rerun.io/docs/reference/types/archetypes/points2d), [`Points3D`](https://www.rerun.io/docs/reference/types/archetypes/points3d), [`Boxes2D`](https://www.rerun.io/docs/reference/types/archetypes/boxes2d), [`AnnotationContext`](https://www.rerun.io/docs/reference/types/archetypes/annotation_context), [`Scalar`](https://www.rerun.io/docs/reference/types/archetypes/scalar)
+[`Image`](https://www.rerun.io/docs/reference/types/archetypes/image), [`Points2D`](https://www.rerun.io/docs/reference/types/archetypes/points2d), [`Points3D`](https://www.rerun.io/docs/reference/types/archetypes/points3d), [`Boxes2D`](https://www.rerun.io/docs/reference/types/archetypes/boxes2d), [`AnnotationContext`](https://www.rerun.io/docs/reference/types/archetypes/annotation_context), [`Scalars`](https://www.rerun.io/docs/reference/types/archetypes/scalars?speculative-link)
 
 ## Background
 The face and face landmark detection technology aims to give the ability of the devices to interpret face movements and facial expressions as commands or inputs.
@@ -35,8 +35,8 @@ The visualizations in this example were created with the following Rerun code.
 For each processed video frame, all data sent to Rerun is associated with the two [`timelines`](https://www.rerun.io/docs/concepts/timelines) `time` and `frame_idx`.
 
 ```python
-rr.set_time_seconds("time", bgr_frame.time)
-rr.set_time_sequence("frame_idx", bgr_frame.idx)
+rr.set_time("time", duration=bgr_frame.time)
+rr.set_time("frame_idx", sequence=bgr_frame.idx)
 ```
 
 ### Video
@@ -53,7 +53,7 @@ Logging the face landmarks involves specifying connections between the points, e
 The 2D points are visualized over the video/image for a better understanding and visualization of the face.
 The 3D points allows the creation of a 3D model of the face reconstruction for a more comprehensive representation of the face.
 
-The 2D and 3D points are logged through a combination of two archetypes. First, a timeless
+The 2D and 3D points are logged through a combination of two archetypes. First, a static
 [`ClassDescription`](https://www.rerun.io/docs/reference/types/datatypes/class_description) is logged, that contains the information which maps keypoint ids to labels and how to connect
 the keypoints. Defining these connections automatically renders lines between them.
 Second, the actual keypoint positions are logged in 2D and 3D as [`Points2D`](https://www.rerun.io/docs/reference/types/archetypes/points2d) and [`Points3D`](https://www.rerun.io/docs/reference/types/archetypes/points3d) archetypes, respectively.
@@ -101,10 +101,10 @@ for i, klass in enumerate(classes):
     )
 
 # Log annotation context for video/landmarker and reconstruction entities
-rr.log("video/landmarker", rr.AnnotationContext(class_descriptions), timeless=True)
-rr.log("reconstruction", rr.AnnotationContext(class_descriptions), timeless=True)
+rr.log("video/landmarker", rr.AnnotationContext(class_descriptions), static=True)
+rr.log("reconstruction", rr.AnnotationContext(class_descriptions), static=True)
 
-rr.log("reconstruction", rr.ViewCoordinates.RDF, timeless=True) # properly align the 3D face in the viewer
+rr.log("reconstruction", rr.ViewCoordinates.RDF, static=True) # properly align the 3D face in the viewer
 ```
 
 With the below annotation, the keypoints will be connected with lines to enhance visibility in the `video/detector` entity.
@@ -114,7 +114,7 @@ rr.log(
     rr.ClassDescription(
         info=rr.AnnotationInfo(id=0), keypoint_connections=[(0, 1), (1, 2), (2, 0), (2, 3), (0, 4), (1, 5)]
     ),
-    timeless=True,
+    static=True,
 )
 ```
 #### Bounding box
@@ -159,20 +159,19 @@ rr.log(
 )
 ```
 
-### Scalar
+### Scalars
 Blendshapes are essentially predefined facial expressions or configurations that can be detected by the face landmark detection model. Each blendshape typically corresponds to a specific facial movement or expression, such as blinking, squinting, smiling, etc.
 
 The blendshapes are logged along with their corresponding scores.
 ```python
 for blendshape in blendshapes:
     if blendshape.category_name in BLENDSHAPES_CATEGORIES:
-        rr.log(f"blendshapes/{i}/{blendshape.category_name}", rr.Scalar(blendshape.score))
+        rr.log(f"blendshapes/{i}/{blendshape.category_name}", rr.Scalars(blendshape.score))
 ```
 
 ## Run the code
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

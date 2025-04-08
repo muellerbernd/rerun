@@ -3,7 +3,7 @@ title = "Objectron"
 tags = ["2D", "3D", "Object detection", "Pinhole camera", "Blueprint"]
 thumbnail = "https://static.rerun.io/objectron/b645ef3c8eff33fbeaefa6d37e0f9711be15b202/480w.png"
 thumbnail_dimensions = [480, 480]
-# channel = "release"  - Disabled because it sometimes have bad first-frame heuristics
+# Channel = "release" - disabled because it sometimes have bad first-frame heuristics
 build_args = ["--frames=150"]
 -->
 
@@ -18,7 +18,7 @@ Visualize the [Google Research Objectron](https://github.com/google-research-dat
 </picture>
 
 ## Used Rerun types
- [`Points3D`](https://www.rerun.io/docs/reference/types/archetypes/points3d), [`Boxes3D`](https://www.rerun.io/docs/reference/types/archetypes/boxes3d), [`Image`](https://ref.rerun.io/docs/python/0.14.1/common/image_helpers/#rerun.ImageEncoded)<sup>*</sup>, [`Transform3D`](https://www.rerun.io/docs/reference/types/archetypes/transform3d), [`Pinhole`](https://www.rerun.io/docs/reference/types/archetypes/pinhole)
+ [`Points3D`](https://www.rerun.io/docs/reference/types/archetypes/points3d), [`Boxes3D`](https://www.rerun.io/docs/reference/types/archetypes/boxes3d), [`EncodedImage`](https://www.rerun.io/docs/reference/types/archetypes/encoded_image), [`Transform3D`](https://www.rerun.io/docs/reference/types/archetypes/transform3d), [`Pinhole`](https://www.rerun.io/docs/reference/types/archetypes/pinhole)
 
 ## Background
 
@@ -35,8 +35,8 @@ The visualizations in this example were created with the following Rerun code:
 For each processed frame, all data sent to Rerun is associated with the two [`timelines`](https://www.rerun.io/docs/concepts/timelines) `time` and `frame_idx`.
 
 ```python
-rr.set_time_sequence("frame", sample.index)
-rr.set_time_seconds("time", sample.timestamp)
+rr.set_time("frame", sequence=sample.index)
+rr.set_time("time", duration=sample.timestamp)
 ```
 
 ### Video
@@ -60,9 +60,9 @@ rr.log(
     ),
 )
 ```
-The input video is logged as a sequence of [`ImageEncoded`](https://ref.rerun.io/docs/python/0.14.1/common/image_helpers/#rerun.ImageEncoded) objects to the `world/camera` entity.
+The input video is logged as a sequence of [`EncodedImage`](https://www.rerun.io/docs/reference/types/archetypes/encoded_image) objects to the `world/camera` entity.
 ```python
-rr.log("world/camera", rr.ImageEncoded(path=sample.image_path))
+rr.log("world/camera", rr.EncodedImage(path=sample.image_path))
 ```
 
 ### Sparse point clouds
@@ -87,7 +87,7 @@ rr.log(
         colors=[160, 230, 130, 255],
         labels=bbox.category,
     ),
-    timeless=True,
+    static=True,
 )
 ```
 
@@ -109,7 +109,6 @@ In particular, we want to reproject the points and the 3D annotation box in the 
 ## Run the code
 To run this example, make sure you have Python version at least 3.9, the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

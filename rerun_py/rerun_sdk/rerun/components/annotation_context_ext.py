@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import pyarrow as pa
 
@@ -38,6 +39,6 @@ class AnnotationContextExt:
         if not isinstance(data, AnnotationContext):
             data = AnnotationContext(class_map=data)  # type: ignore[arg-type]
 
-        internal_array = ClassDescriptionMapElemBatch(data.class_map).as_arrow_array().storage
+        internal_array = ClassDescriptionMapElemBatch(data.class_map).as_arrow_array()
 
         return pa.ListArray.from_arrays(offsets=[0, len(internal_array)], values=internal_array).cast(data_type)

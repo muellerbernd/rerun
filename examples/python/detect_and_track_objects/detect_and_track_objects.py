@@ -7,9 +7,10 @@ import argparse
 import json
 import logging
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, Sequence
+from typing import Any, Final
 
 import cv2
 import numpy as np
@@ -42,10 +43,10 @@ COCO_CATEGORIES_PATH = EXAMPLE_DIR / "panoptic_coco_categories.json"
 DOWNSCALE_FACTOR = 2
 DETECTION_SCORE_THRESHOLD = 0.8
 
-os.environ["TRANSFORMERS_CACHE"] = str(CACHE_DIR.absolute())
+os.environ["HF_HOME"] = str(CACHE_DIR.absolute())
 from transformers import (  # noqa: E402 module level import not at top of file
-    DetrFeatureExtractor,
     DetrForSegmentation,
+    DetrImageProcessor,
 )
 
 
@@ -83,7 +84,7 @@ class Detector:
 
     def __init__(self, coco_categories: list[dict[str, Any]]) -> None:
         logging.info("Initializing neural net for detection and segmentation.")
-        self.feature_extractor = DetrFeatureExtractor.from_pretrained("facebook/detr-resnet-50-panoptic")
+        self.feature_extractor = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50-panoptic")
         self.model = DetrForSegmentation.from_pretrained("facebook/detr-resnet-50-panoptic")
 
         self.is_thing_from_id: dict[int, bool] = {cat["id"]: bool(cat["isthing"]) for cat in coco_categories}
@@ -106,7 +107,9 @@ class Detector:
         processed_sizes = [(scaled_height, scaled_width)]
         segmentation_mask = self.feature_extractor.post_process_semantic_segmentation(outputs, processed_sizes)[0]
         detections = self.feature_extractor.post_process_object_detection(
-            outputs, threshold=0.8, target_sizes=processed_sizes
+            outputs,
+            threshold=0.8,
+            target_sizes=processed_sizes,
         )[0]
 
         mask = segmentation_mask.detach().cpu().numpy().astype(np.uint8)
@@ -129,7 +132,7 @@ class Detector:
                         bbox_xywh=bbox_xywh,
                         image_width=scaled_width,
                         image_height=scaled_height,
-                    )
+                    ),
                 )
 
         return objects_to_track
@@ -176,7 +179,7 @@ class Tracker:
         self.tracked = detection.scaled_to_fit_image(bgr)
         self.num_recent_undetected_frames = 0
 
-        self.tracker = cv2.legacy.TrackerCSRT_create()  # type: ignore[attr-defined]
+        self.tracker = cv2.legacy.TrackerCSRT_create()
         bbox_xywh_rounded = [int(val) for val in self.tracked.bbox_xywh]
         self.tracker.init(bgr, bbox_xywh_rounded)
         self.log_tracked()
@@ -194,7 +197,9 @@ class Tracker:
 
         if success:
             self.tracked.bbox_xywh = clip_bbox_to_image(
-                bbox_xywh=bbox_xywh, image_width=self.tracked.image_width, image_height=self.tracked.image_height
+                bbox_xywh=bbox_xywh,
+                image_width=self.tracked.image_width,
+                image_height=self.tracked.image_height,
             )
         else:
             logging.info("Tracker update failed for tracker with id #%d", self.tracking_id)
@@ -205,7 +210,7 @@ class Tracker:
     def log_tracked(self) -> None:
         if self.is_tracking:
             rr.log(
-                f"image/tracked/{self.tracking_id}",
+                f"video/tracked/{self.tracking_id}",
                 rr.Boxes2D(
                     array=self.tracked.bbox_xywh,
                     array_format=rr.Box2DFormat.XYWH,
@@ -213,12 +218,12 @@ class Tracker:
                 ),
             )
         else:
-            rr.log(f"image/tracked/{self.tracking_id}", rr.Clear(recursive=False))  # TODO(#3381)
+            rr.log(f"video/tracked/{self.tracking_id}", rr.Boxes2D.cleared())
 
     def update_with_detection(self, detection: Detection, bgr: cv2.typing.MatLike) -> None:
         self.num_recent_undetected_frames = 0
         self.tracked = detection.scaled_to_fit_image(bgr)
-        self.tracker = cv2.TrackerCSRT_create()  # type: ignore[attr-defined]
+        self.tracker = cv2.TrackerCSRT_create()
         bbox_xywh_rounded = [int(val) for val in self.tracked.bbox_xywh]
         self.tracker.init(bgr, bbox_xywh_rounded)
         self.log_tracked()
@@ -334,7 +339,15 @@ def track_objects(video_path: str, *, max_frame_count: int | None) -> None:
     ]
     rr.log("/", rr.AnnotationContext(class_descriptions), static=True)
 
+    logging.info("Initializing detector…")
+    # This call has a tendency to hard exit on failure (no exceptions):
     detector = Detector(coco_categories=coco_categories)
+    logging.info("Detector initialized.")
+
+    video_asset = rr.AssetVideo(path=video_path)
+    frame_timestamps_ns = video_asset.read_frame_timestamps_nanos()
+
+    rr.log("video", video_asset, static=True)
 
     logging.info("Loading input video: %s", str(video_path))
     cap = cv2.VideoCapture(video_path)
@@ -342,19 +355,20 @@ def track_objects(video_path: str, *, max_frame_count: int | None) -> None:
 
     label_strs = [cat["name"] or str(cat["id"]) for cat in coco_categories]
     trackers: list[Tracker] = []
+
     while cap.isOpened():
         if max_frame_count is not None and frame_idx >= max_frame_count:
             break
 
         ret, bgr = cap.read()
-        rr.set_time_sequence("frame", frame_idx)
+        rr.set_time("frame", sequence=frame_idx)
 
         if not ret:
             logging.info("End of video")
             break
 
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        rr.log("image", rr.Image(rgb).compress(jpeg_quality=85))
+        rr.log("video", rr.VideoFrameReference(nanoseconds=frame_timestamps_ns[frame_idx]))
 
         if not trackers or frame_idx % 40 == 0:
             detections = detector.detect_objects_to_track(rgb=rgb, frame_idx=frame_idx)
@@ -406,7 +420,7 @@ def main() -> None:
         "--video",
         type=str,
         default="horses",
-        choices=["horses, driving", "boats"],
+        choices=["horses", "driving", "boats"],
         help="The example video to run on.",
     )
     parser.add_argument("--dataset-dir", type=Path, default=DATASET_DIR, help="Directory to save example videos to.")

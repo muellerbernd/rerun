@@ -7,8 +7,8 @@ from uuid import uuid4
 import rerun as rr
 import rerun.blueprint as rrb
 
-README = """
-# Context Menu - Add entity to new space view
+README = """\
+# Context Menu - Add entity to new view
 
 ## Blueprint tree
 
@@ -37,24 +37,25 @@ def blueprint() -> rrb.BlueprintLike:
             rrb.Horizontal(
                 rrb.Vertical(
                     rrb.Spatial3DView(origin="/"),
-                )
-            )
+                ),
+            ),
         ),
         column_shares=[2, 1],
     )
 
 
-def log_some_space_views() -> None:
-    rr.set_time_sequence("frame_nr", 0)
+def log_some_views() -> None:
+    rr.set_time("frame_nr", sequence=0)
     rr.log("/", rr.Boxes3D(centers=[0, 0, 0], half_sizes=[1, 1, 1]))
     rr.log("/world/robot/arm/actuator/thing", rr.Boxes3D(centers=[0.5, 0, 0], half_sizes=[0.1, 0.1, 0.1]))
 
 
 def run(args: Namespace) -> None:
-    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4(), default_blueprint=blueprint())
+    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4())
+    rr.send_blueprint(blueprint(), make_active=True, make_default=True)
 
     log_readme()
-    log_some_space_views()
+    log_some_views()
 
 
 if __name__ == "__main__":

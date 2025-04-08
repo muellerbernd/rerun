@@ -7,7 +7,7 @@ This is an end-to-end test for testing:
 * Our Python API
 * LogMsg encoding/decoding
 * Arrow encoding/decoding
-* TCP connection
+* gRPC connection
 * Data store ingestion
 """
 
@@ -78,6 +78,10 @@ def main() -> None:
 
 def run_example(example: str, extra_args: list[str]) -> None:
     env = os.environ.copy()
+
+    # raise exception on warnings, e.g. when using a @deprecated function:
+    env["PYTHONWARNINGS"] = "error"
+
     env["RERUN_STRICT"] = "1"
     env["RERUN_PANIC_ON_WARN"] = "1"
 
@@ -85,7 +89,7 @@ def run_example(example: str, extra_args: list[str]) -> None:
     rerun_process = subprocess.Popen(cmd, env=env)
     time.sleep(0.5)  # Wait for rerun server to start to remove a logged warning
 
-    cmd = ["python", "-m", example, "--connect", "--addr", f"127.0.0.1:{PORT}"] + extra_args
+    cmd = ["python", "-m", example, "--connect", "--url", f"rerun+http://127.0.0.1:{PORT}/proxy"] + extra_args
     python_process = subprocess.Popen(cmd, env=env)
 
     print("Waiting for python process to finish…")

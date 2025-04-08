@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
+from typing import Optional
 
-from ..datatypes import Utf8Like
-from .api import Container, SpaceView
-from .components import ColumnShareArrayLike, RowShareArrayLike
+from ..datatypes import Float32ArrayLike, Utf8Like
+from .api import Container, View
 from .components.container_kind import ContainerKind
 
 
@@ -13,11 +13,11 @@ class Horizontal(Container):
 
     def __init__(
         self,
-        *args: Container | SpaceView,
-        contents: Optional[Iterable[Container | SpaceView]] = None,
-        column_shares: Optional[ColumnShareArrayLike] = None,
+        *args: Container | View,
+        contents: Optional[Iterable[Container | View]] = None,
+        column_shares: Optional[Float32ArrayLike] = None,
         name: Utf8Like | None = None,
-    ):
+    ) -> None:
         """
         Construct a new horizontal container.
 
@@ -26,7 +26,7 @@ class Horizontal(Container):
         *args:
             All positional arguments are forwarded to the `contents` parameter for convenience.
         contents:
-            The contents of the container. Each item in the iterable must be a `SpaceView` or a `Container`.
+            The contents of the container. Each item in the iterable must be a `View` or a `Container`.
             This can only be used if no positional arguments are provided.
         column_shares
             The layout shares of the columns in the container. The share is used to determine what fraction of the total width each
@@ -36,7 +36,11 @@ class Horizontal(Container):
 
         """
         super().__init__(
-            *args, contents=contents, kind=ContainerKind.Horizontal, column_shares=column_shares, name=name
+            *args,
+            contents=contents,
+            kind=ContainerKind.Horizontal,
+            column_shares=column_shares,
+            name=name,
         )
 
 
@@ -45,11 +49,11 @@ class Vertical(Container):
 
     def __init__(
         self,
-        *args: Container | SpaceView,
-        contents: Optional[Iterable[Container | SpaceView]] = None,
-        row_shares: Optional[RowShareArrayLike] = None,
+        *args: Container | View,
+        contents: Optional[Iterable[Container | View]] = None,
+        row_shares: Optional[Float32ArrayLike] = None,
         name: Utf8Like | None = None,
-    ):
+    ) -> None:
         """
         Construct a new vertical container.
 
@@ -58,7 +62,7 @@ class Vertical(Container):
         *args:
             All positional arguments are forwarded to the `contents` parameter for convenience.
         contents:
-            The contents of the container. Each item in the iterable must be a `SpaceView` or a `Container`.
+            The contents of the container. Each item in the iterable must be a `View` or a `Container`.
             This can only be used if no positional arguments are provided.
         row_shares
             The layout shares of the rows in the container. The share is used to determine what fraction of the total height each
@@ -75,13 +79,13 @@ class Grid(Container):
 
     def __init__(
         self,
-        *args: Container | SpaceView,
-        contents: Optional[Iterable[Container | SpaceView]] = None,
-        column_shares: Optional[ColumnShareArrayLike] = None,
-        row_shares: Optional[RowShareArrayLike] = None,
+        *args: Container | View,
+        contents: Optional[Iterable[Container | View]] = None,
+        column_shares: Optional[Float32ArrayLike] = None,
+        row_shares: Optional[Float32ArrayLike] = None,
         grid_columns: Optional[int] = None,
         name: Utf8Like | None = None,
-    ):
+    ) -> None:
         """
         Construct a new grid container.
 
@@ -90,7 +94,7 @@ class Grid(Container):
         *args:
             All positional arguments are forwarded to the `contents` parameter for convenience.
         contents:
-            The contents of the container. Each item in the iterable must be a `SpaceView` or a `Container`.
+            The contents of the container. Each item in the iterable must be a `View` or a `Container`.
             This can only be used if no positional arguments are provided.
         column_shares
             The layout shares of the columns in the container. The share is used to determine what fraction of the total width each
@@ -120,11 +124,11 @@ class Tabs(Container):
 
     def __init__(
         self,
-        *args: Container | SpaceView,
-        contents: Optional[Iterable[Container | SpaceView]] = None,
+        *args: Container | View,
+        contents: Optional[Iterable[Container | View]] = None,
         active_tab: Optional[int | str] = None,
         name: Utf8Like | None = None,
-    ):
+    ) -> None:
         """
         Construct a new tab container.
 
@@ -133,7 +137,7 @@ class Tabs(Container):
         *args:
             All positional arguments are forwarded to the `contents` parameter for convenience.
         contents:
-            The contents of the container. Each item in the iterable must be a `SpaceView` or a `Container`.
+            The contents of the container. Each item in the iterable must be a `View` or a `Container`.
             This can only be used if no positional arguments are provided.
         active_tab:
             The index or name of the active tab.

@@ -29,25 +29,30 @@ special exit code to indicate that it doesn't support anything else.
 
 To try it out, copy it in your $PATH as `rerun-loader-python-file`, then open a Python source
 file with Rerun (`rerun file.py`).
-"""
+""",
 )
 parser.add_argument("filepath", type=str)
 parser.add_argument("--application-id", type=str, help="optional recommended ID for the application")
 parser.add_argument("--recording-id", type=str, help="optional recommended ID for the recording")
 parser.add_argument("--entity-path-prefix", type=str, help="optional prefix for all entity paths")
-parser.add_argument("--timeless", action="store_true", default=False, help="deprecated: alias for `--static`")
 parser.add_argument("--static", action="store_true", default=False, help="optionally mark data to be logged as static")
 parser.add_argument(
-    "--time",
+    "--time_sequence",
     type=str,
     action="append",
-    help="optional timestamps to log at (e.g. `--time sim_time=1709203426`)",
+    help="optional sequences to log at (e.g. `--time_sequence sim_frame=42`)",
 )
 parser.add_argument(
-    "--sequence",
+    "--time_duration_nanos",
     type=str,
     action="append",
-    help="optional sequences to log at (e.g. `--sequence sim_frame=42`)",
+    help="optional duration(s) (in nanoseconds) to log at (e.g. `--time_duration_nanos sim_time=123`) (repeatable)",
+)
+parser.add_argument(
+    "--time_timestamp_nanos",
+    type=str,
+    action="append",
+    help="optional timestamp(s) (in nanoseconds since epochj) to log at (e.g. `--time_timestamp_nanos sim_time=1709203426123456789`) (repeatable)",
 )
 args = parser.parse_args()
 
@@ -77,26 +82,31 @@ def main() -> None:
     with open(args.filepath, encoding="utf8") as file:
         body = file.read()
         text = f"""## Some Python code\n```python\n{body}\n```\n"""
-        rr.log(
-            entity_path, rr.TextDocument(text, media_type=rr.MediaType.MARKDOWN), static=args.static or args.timeless
-        )
+        rr.log(entity_path, rr.TextDocument(text, media_type=rr.MediaType.MARKDOWN), static=args.static)
 
 
 def set_time_from_args() -> None:
-    if not args.timeless and args.time is not None:
-        for time_str in args.time:
+    if not args.static and args.time is not None:
+        for time_str in args.time_sequence:
             parts = time_str.split("=")
             if len(parts) != 2:
                 continue
-            timeline_name, time = parts
-            rr.set_time_nanos(timeline_name, int(time))
+            timeline_name, sequence = parts
+            rr.set_time(timeline_name, sequence=int(sequence))
 
-        for time_str in args.sequence:
+        for time_str in args.time_duration_nanos:
             parts = time_str.split("=")
             if len(parts) != 2:
                 continue
-            timeline_name, time = parts
-            rr.set_time_sequence(timeline_name, int(time))
+            timeline_name, nanos = parts
+            rr.set_time(timeline_name, duration=1e-9 * int(nanos))
+
+        for time_str in args.time_timestamp_nanos:
+            parts = time_str.split("=")
+            if len(parts) != 2:
+                continue
+            timeline_name, nanos = parts
+            rr.set_time(timeline_name, timestamp=1e-9 * int(nanos))
 
 
 if __name__ == "__main__":

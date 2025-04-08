@@ -11,7 +11,6 @@ import numpy as np
 import rerun as rr  # pip install rerun-sdk
 import rerun.blueprint as rrb
 import trimesh
-from rerun.components import Material
 
 from .download_dataset import AVAILABLE_MESHES, ensure_mesh_downloaded
 
@@ -56,7 +55,7 @@ def log_scene(scene: trimesh.Scene, node: str, path: str | None = None) -> None:
         if mesh is not None:
             vertex_colors = None
             vertex_texcoords = None
-            mesh_material = None
+            albedo_factor = None
             albedo_texture = None
 
             try:
@@ -78,7 +77,7 @@ def log_scene(scene: trimesh.Scene, node: str, path: str | None = None) -> None:
                     if len(colors) == 4:
                         # If trimesh gives us a single vertex color for the entire mesh, we can interpret that
                         # as an albedo factor for the whole primitive.
-                        mesh_material = Material(albedo_factor=np.array(colors))
+                        albedo_factor = np.array(colors)
                     else:
                         vertex_colors = colors
                 except Exception:
@@ -89,11 +88,11 @@ def log_scene(scene: trimesh.Scene, node: str, path: str | None = None) -> None:
                 rr.Mesh3D(
                     vertex_positions=mesh.vertices,
                     vertex_colors=vertex_colors,
-                    vertex_normals=mesh.vertex_normals,  # type: ignore[arg-type]
+                    vertex_normals=mesh.vertex_normals,
                     vertex_texcoords=vertex_texcoords,
                     albedo_texture=albedo_texture,
                     triangle_indices=mesh.faces,
-                    mesh_material=mesh_material,
+                    albedo_factor=albedo_factor,
                 ),
             )
 
@@ -104,7 +103,7 @@ def log_scene(scene: trimesh.Scene, node: str, path: str | None = None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Logs raw 3D meshes and their transform hierarchy using the Rerun SDK."
+        description="Logs raw 3D meshes and their transform hierarchy using the Rerun SDK.",
     )
     parser.add_argument(
         "--scene",
@@ -135,7 +134,7 @@ def main() -> None:
     )
 
     rr.script_setup(args, "rerun_example_raw_mesh", default_blueprint=blueprint)
-    rr.log("description", rr.TextDocument(DESCRIPTION, media_type=rr.MediaType.MARKDOWN), timeless=True)
+    rr.log("description", rr.TextDocument(DESCRIPTION, media_type=rr.MediaType.MARKDOWN), static=True)
 
     # glTF always uses a right-handed coordinate system when +Y is up and meshes face +Z.
     rr.log(root, rr.ViewCoordinates.RUB, static=True)

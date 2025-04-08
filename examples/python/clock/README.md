@@ -16,11 +16,11 @@ thumbnail_dimensions = [480, 480]
 
 An example visualizing an analog clock with hour, minute and seconds hands using Rerun Arrow3D primitives.
 
-# Used Rerun types
+## Used Rerun types
 
 [`Boxes3D`](https://www.rerun.io/docs/reference/types/archetypes/boxes3d), [`Points3D`](https://www.rerun.io/docs/reference/types/archetypes/points3d), [`Arrows3D`](https://www.rerun.io/docs/reference/types/archetypes/arrows3d)
 
-# Logging and visualizing with Rerun
+## Logging and visualizing with Rerun
 
 The visualizations in this example were created with the following Rerun code:
 
@@ -29,7 +29,7 @@ The clock's frame is logged as a 3D box using [`Boxes3D`](https://www.rerun.io/d
 rr.log(
     "world/frame",
     rr.Boxes3D(half_sizes=[LENGTH_S, LENGTH_S, 1.0], centers=[0.0, 0.0, 0.0]),
-    timeless=True,
+    static=True,
 )
  ```
 
@@ -39,7 +39,7 @@ This enables the visualization of the clock's movement over time.
 
  ```python
 for step in range(steps):
-    rr.set_time_seconds("sim_time", t_secs)
+    rr.set_time("sim_time", duration=t_secs)
 
     # … calculating seconds …
     rr.log("world/seconds_pt", rr.Points3D(positions=point_s, colors=color_s))
@@ -54,10 +54,9 @@ for step in range(steps):
     rr.log("world/hours_hand", rr.Arrows3D(vectors=point_h, colors=color_h, radii=WIDTH_H))
  ```
 
-# Run the code
+## Run the code
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

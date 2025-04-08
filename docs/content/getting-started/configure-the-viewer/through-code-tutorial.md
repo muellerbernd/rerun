@@ -1,5 +1,5 @@
 ---
-title: Configure the viewer through code
+title: Configure the Viewer through code
 order: 3
 ---
 
@@ -29,7 +29,7 @@ we will completely change the way the data is presented.
 We start by creating a new virtual environment and installing the Rerun SDK along with the dependencies
 we will use in this example.
 
-On linux or mac:
+On Linux or Mac:
 
 ```bash
 mkdir stocks_example
@@ -79,15 +79,15 @@ brand_colors = {
 }
 
 
-def style_plot(symbol: str) -> rr.SeriesLine:
-    return rr.SeriesLine(
+def style_plot(symbol: str) -> rr.SeriesLines:
+    return rr.SeriesLines(
         color=brand_colors[symbol],
         name=symbol,
     )
 
 
-def style_peak(symbol: str) -> rr.SeriesPoint:
-    return rr.SeriesPoint(
+def style_peak(symbol: str) -> rr.SeriesPoints:
+    return rr.SeriesPoints(
         color=0xFF0000FF,
         name=f"{symbol} (peak)",
         marker="Up",
@@ -133,13 +133,13 @@ def main() -> None:
     for symbol in symbols:
         stock = yf.Ticker(symbol)
 
-        # Log the stock info document as timeless
-        rr.log(f"stocks/{symbol}/info", info_card(**stock.info), timeless=True)
+        # Log the stock info document as static
+        rr.log(f"stocks/{symbol}/info", info_card(**stock.info), static=True)
 
         for day in dates:
-            # Log the styling data as timeless
-            rr.log(f"stocks/{symbol}/{day}", style_plot(symbol), timeless=True)
-            rr.log(f"stocks/{symbol}/peaks/{day}", style_peak(symbol), timeless=True)
+            # Log the styling data as static
+            rr.log(f"stocks/{symbol}/{day}", style_plot(symbol), static=True)
+            rr.log(f"stocks/{symbol}/peaks/{day}", style_peak(symbol), static=True)
 
             # Query the stock data during market hours
             open_time = dt.datetime.combine(day, dt.time(9, 30), et_timezone)
@@ -153,10 +153,10 @@ def main() -> None:
 
             # Log the stock state over the course of the day
             for row in hist.itertuples():
-                rr.set_time_seconds("time", row.Index.total_seconds())
-                rr.log(f"stocks/{symbol}/{day}", rr.Scalar(row.High))
+                rr.set_time("time", duration=row.Index)
+                rr.log(f"stocks/{symbol}/{day}", rr.Scalars(row.High))
                 if row.Index == peak:
-                    rr.log(f"stocks/{symbol}/peaks/{day}", rr.Scalar(row.High))
+                    rr.log(f"stocks/{symbol}/peaks/{day}", rr.Scalars(row.High))
 
 
 if __name__ == "__main__":
@@ -229,9 +229,9 @@ Let's modify the code again to include additional blueprint specifications for t
     # Create a single chart for all the AAPL data, and collapse the selection and time panels:
     blueprint = rrb.Blueprint(
         rrb.TimeSeriesView(name="AAPL", origin="/stocks/AAPL"),
-        rrb.BlueprintPanel(expanded=True),
-        rrb.SelectionPanel(expanded=False),
-        rrb.TimePanel(expanded=False),
+        rrb.BlueprintPanel(state="expanded"),
+        rrb.SelectionPanel(state="collapsed"),
+        rrb.TimePanel(state="collapsed"),
     )
     rr.send_blueprint(blueprint)
 ```
@@ -263,9 +263,9 @@ Let's modify the code to include the info card as well. We will use the `Vertica
             rrb.TimeSeriesView(name="Chart", origin="/stocks/AAPL"),
             row_shares=[1, 4],
         ),
-        rrb.BlueprintPanel(expanded=True),
-        rrb.SelectionPanel(expanded=False),
-        rrb.TimePanel(expanded=False),
+        rrb.BlueprintPanel(state="expanded"),
+        rrb.SelectionPanel(state="collapsed"),
+        rrb.TimePanel(state="collapsed"),
     )
     rr.send_blueprint(blueprint)
 ```
@@ -298,9 +298,9 @@ the same chart. Using `origin` alone there is no way we could have expressed thi
                 "+ /stocks/MSFT/2024-03-19",
             ],
         ),
-        rrb.BlueprintPanel(expanded=True),
-        rrb.SelectionPanel(expanded=False),
-        rrb.TimePanel(expanded=False),
+        rrb.BlueprintPanel(state="expanded"),
+        rrb.SelectionPanel(state="collapsed"),
+        rrb.TimePanel(state="collapsed"),
     )
     rr.send_blueprint(blueprint)
 ```
@@ -337,9 +337,9 @@ Going back to our single stock example, we can filter out the peaks data by excl
                 "- $origin/peaks/**",
             ],
         ),
-        rrb.BlueprintPanel(expanded=True),
-        rrb.SelectionPanel(expanded=False),
-        rrb.TimePanel(expanded=False),
+        rrb.BlueprintPanel(state="expanded"),
+        rrb.SelectionPanel(state="collapsed"),
+        rrb.TimePanel(state="collapsed"),
     )
     rr.send_blueprint(blueprint)
 ```
@@ -356,7 +356,7 @@ When you run the script you will see that the data from the peaks subtree is no 
 
 ### Programmatic layouts
 
-Since these layouts are created by executing python code, they can also be generated programmatically.
+Since these layouts are created by executing Python code, they can also be generated programmatically.
 
 For example, we can create a create a separate view for every piece of data we were interested in.
 Setting this up by hand would be extremely tedious.
@@ -385,9 +385,9 @@ Setting this up by hand would be extremely tedious.
                 for symbol in symbols
             ]
         ),
-        rrb.BlueprintPanel(expanded=True),
-        rrb.SelectionPanel(expanded=False),
-        rrb.TimePanel(expanded=False),
+        rrb.BlueprintPanel(state="expanded"),
+        rrb.SelectionPanel(state="collapsed"),
+        rrb.TimePanel(state="collapsed"),
     )
     rr.send_blueprint(blueprint)
 ```
@@ -401,3 +401,9 @@ Running the script again this final chart is a significant improvement over the 
   <source media="(max-width: 1024px)" srcset="https://static.rerun.io/blueprint_tutorial_grid/b9c41481818f9028d75df6076c62653989a02c66/1024w.png">
   <source media="(max-width: 1200px)" srcset="https://static.rerun.io/blueprint_tutorial_grid/b9c41481818f9028d75df6076c62653989a02c66/1200w.png">
 </picture>
+
+### Visualizers and overrides
+
+<!-- TODO(ab): the linked section's content is already pretty rich, but, ideally, this section should also include code examples -->
+
+Since release 0.17, even deeper configurations from code are possible. This includes overriding component values for a given view entity, specifying default values for components for a given view, and controlling which visualizer(s) are used per view entity. See [Visualizers and Overrides](../../concepts/visualizers-and-overrides.md) for more information and code examples.

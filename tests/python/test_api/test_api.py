@@ -25,7 +25,7 @@ import rerun as rr  # pip install rerun-sdk
 
 
 def run_segmentation() -> None:
-    rr.set_time_seconds("sim_time", 1)
+    rr.set_time("sim_time", duration=1)
 
     # Log an image before we have set up our labels
     segmentation_img = np.zeros([128, 128], dtype="uint8")
@@ -53,19 +53,19 @@ def run_segmentation() -> None:
     rr.log("logs/seg_test_log", rr.TextLog("default colored rects, default colored points, a single point has a label"))
 
     # Log an initial segmentation map with arbitrary colors
-    rr.set_time_seconds("sim_time", 2)
+    rr.set_time("sim_time", duration=2)
 
     rr.log("seg_test", rr.AnnotationContext([(13, "label1"), (42, "label2"), (99, "label3")]), static=False)
 
     rr.log(
         "logs/seg_test_log",
         rr.TextLog(
-            "default colored rects, default colored points, " "all points except the bottom right clusters have labels",
+            "default colored rects, default colored points, all points except the bottom right clusters have labels",
         ),
     )
 
     # Log an updated segmentation map with specific colors
-    rr.set_time_seconds("sim_time", 3)
+    rr.set_time("sim_time", duration=3)
     rr.log(
         "seg_test",
         rr.AnnotationContext([(13, "label1", (255, 0, 0)), (42, "label2", (0, 255, 0)), (99, "label3", (0, 0, 255))]),
@@ -74,7 +74,7 @@ def run_segmentation() -> None:
     rr.log("logs/seg_test_log", rr.TextLog("points/rects with user specified colors"))
 
     # Log with a mixture of set and unset colors / labels
-    rr.set_time_seconds("sim_time", 4)
+    rr.set_time("sim_time", duration=4)
 
     rr.log(
         "seg_test",
@@ -99,9 +99,6 @@ def small_image() -> None:
 def transforms() -> None:
     rr.log("transforms", rr.ViewCoordinates.RIGHT_HAND_Y_UP, static=True)
 
-    # Log a disconnected space (this doesn't do anything here, but can be used to force a new space)
-    rr.log("transforms/disconnected", rr.DisconnectedSpace())
-
     # Log scale along the x axis only.
     rr.log("transforms/x_scaled", rr.Transform3D(scale=(3, 1, 1)))
 
@@ -114,7 +111,7 @@ def transforms() -> None:
     # Log a transform from parent to child with a translation and skew along y and x.
     rr.log(
         "transforms/child_from_parent_translation",
-        rr.Transform3D(translation=(-1, 0, 0), from_parent=True),
+        rr.Transform3D(translation=(-1, 0, 0), relation=rr.TransformRelation.ChildFromParent),
     )
 
     # Log translation only.
@@ -155,7 +152,7 @@ def run_2d_lines() -> None:
 
     T = np.linspace(0, 5, 100)
     for n in range(2, len(T)):
-        rr.set_time_seconds("sim_time", T[n])
+        rr.set_time("sim_time", duration=T[n])
         t = T[:n]
         x = np.cos(t * 5) * t
         y = np.sin(t * 5) * t
@@ -164,7 +161,7 @@ def run_2d_lines() -> None:
 
 
 def run_3d_points() -> None:
-    rr.set_time_seconds("sim_time", 1)
+    rr.set_time("sim_time", duration=1)
     rr.log("3d_points/single_point_unlabeled", rr.Points3D(np.array([10.0, 0.0, 0.0])))
     rr.log("3d_points/single_point_labeled", rr.Points3D(np.array([0.0, 0.0, 0.0]), labels="labeled point"))
     rr.log(
@@ -189,14 +186,14 @@ def raw_mesh() -> None:
     rr.log(
         "mesh_test/triangle",
         rr.Mesh3D(
-            vertex_positions=[[0, 0, 0], [0, 0.7, 0], [1.0, 0.0, 0]],
+            vertex_positions=[[0.0, 0.0, 0.0], [0.0, 0.7, 0.0], [1.0, 0.0, 0.0]],
             vertex_colors=[[255, 0, 0], [0, 255, 0], [0, 0, 255]],
         ),
     )
 
 
 def run_rects() -> None:
-    rr.set_time_seconds("sim_time", 1)
+    rr.set_time("sim_time", duration=1)
 
     # Add an image
     img = np.zeros([1024, 1024, 3], dtype="uint8")
@@ -204,7 +201,7 @@ def run_rects() -> None:
     rr.log("rects_test/img", rr.Image(img))
 
     # 20 random rectangles
-    rr.set_time_seconds("sim_time", 2)
+    rr.set_time("sim_time", duration=2)
     rects_xy = np.random.rand(20, 2) * 1024
     rects_wh = np.random.rand(20, 2) * (1024 - rects_xy + 1)
     rects = np.hstack((rects_xy, rects_wh))
@@ -212,7 +209,7 @@ def run_rects() -> None:
     rr.log("rects_test/rects", rr.Boxes2D(array=rects, colors=colors, array_format=rr.Box2DFormat.XYWH))
 
     # Clear the rectangles by logging an empty set
-    rr.set_time_seconds("sim_time", 3)
+    rr.set_time("sim_time", duration=3)
     rr.log("rects_test/rects", rr.Boxes2D(sizes=[]))
 
 
@@ -226,7 +223,7 @@ def run_text_logs() -> None:
 
 
 def run_log_cleared() -> None:
-    rr.set_time_seconds("sim_time", 1)
+    rr.set_time("sim_time", duration=1)
     rr.log(
         "null_test/rect/0",
         rr.Boxes2D(array=[5, 5, 4, 4], array_format=rr.Box2DFormat.XYWH, labels="Rect1", colors=(255, 0, 0)),
@@ -235,114 +232,36 @@ def run_log_cleared() -> None:
         "null_test/rect/1",
         rr.Boxes2D(array=[10, 5, 4, 4], array_format=rr.Box2DFormat.XYWH, labels="Rect2", colors=(0, 255, 0)),
     )
-    rr.set_time_seconds("sim_time", 2)
+    rr.set_time("sim_time", duration=2)
     rr.log("null_test/rect/0", rr.Clear(recursive=False))
-    rr.set_time_seconds("sim_time", 3)
+    rr.set_time("sim_time", duration=3)
     rr.log("null_test/rect", rr.Clear(recursive=True))
-    rr.set_time_seconds("sim_time", 4)
+    rr.set_time("sim_time", duration=4)
     rr.log("null_test/rect/0", rr.Boxes2D(array=[5, 5, 4, 4], array_format=rr.Box2DFormat.XYWH))
-    rr.set_time_seconds("sim_time", 5)
+    rr.set_time("sim_time", duration=5)
     rr.log("null_test/rect/1", rr.Boxes2D(array=[10, 5, 4, 4], array_format=rr.Box2DFormat.XYWH))
 
 
-def transforms_rigid_3d() -> None:
-    rr.set_time_seconds("sim_time", 0)
-
-    sun_to_planet_distance = 6.0
-    planet_to_moon_distance = 3.0
-    rotation_speed_planet = 2.0
-    rotation_speed_moon = 5.0
-
-    # Planetary motion is typically in the XY plane.
-    rr.log("transforms3d", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
-    rr.log("transforms3d/sun", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
-    rr.log("transforms3d/sun/planet", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
-    rr.log("transforms3d/sun/planet/moon", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
-
-    # All are in the center of their own space:
-    rr.log("transforms3d/sun", rr.Points3D([0.0, 0.0, 0.0], radii=1.0, colors=[255, 200, 10]))
-    rr.log("transforms3d/sun/planet", rr.Points3D([0.0, 0.0, 0.0], radii=0.4, colors=[40, 80, 200]))
-    rr.log("transforms3d/sun/planet/moon", rr.Points3D([0.0, 0.0, 0.0], radii=0.15, colors=[180, 180, 180]))
-
-    # "dust" around the "planet" (and inside, don't care)
-    # distribution is quadratically higher in the middle
-    radii = np.random.rand(200) * planet_to_moon_distance * 0.5
-    angles = np.random.rand(200) * math.tau
-    height = np.power(np.random.rand(200), 0.2) * 0.5 - 0.5
-    rr.log(
-        "transforms3d/sun/planet/dust",
-        rr.Points3D(
-            np.array([np.sin(angles) * radii, np.cos(angles) * radii, height]).transpose(),
-            colors=[80, 80, 80],
-            radii=0.025,
-        ),
-    )
-
-    # paths where the planet & moon move
-    angles = np.arange(0.0, 1.01, 0.01) * math.tau
-    circle = np.array([np.sin(angles), np.cos(angles), angles * 0.0]).transpose()
-    rr.log(
-        "transforms3d/sun/planet_path",
-        rr.LineStrips3D(
-            circle * sun_to_planet_distance,
-        ),
-    )
-    rr.log(
-        "transforms3d/sun/planet/moon_path",
-        rr.LineStrips3D(
-            circle * planet_to_moon_distance,
-        ),
-    )
-
-    # movement via transforms
-    for i in range(0, 6 * 120):
-        time = i / 120.0
-        rr.set_time_seconds("sim_time", time)
-
-        rr.log(
-            "transforms3d/sun/planet",
-            rr.Transform3D(
-                translation=[
-                    math.sin(time * rotation_speed_planet) * sun_to_planet_distance,
-                    math.cos(time * rotation_speed_planet) * sun_to_planet_distance,
-                    0.0,
-                ],
-                rotation=rr.RotationAxisAngle(axis=(1, 0, 0), degrees=20),
-            ),
-        )
-        rr.log(
-            "transforms3d/sun/planet/moon",
-            rr.Transform3D(
-                translation=[
-                    math.cos(time * rotation_speed_moon) * planet_to_moon_distance,
-                    math.sin(time * rotation_speed_moon) * planet_to_moon_distance,
-                    0.0,
-                ],
-                from_parent=True,
-            ),
-        )
-
-
 def run_bounding_box() -> None:
-    rr.set_time_seconds("sim_time", 0)
+    rr.set_time("sim_time", duration=0)
     rr.log(
         "bbox_test/bbox",
         rr.Boxes3D(
             half_sizes=[1.0, 0.5, 0.25],
-            rotations=rr.Quaternion(xyzw=[0, 0, np.sin(np.pi / 4), np.cos(np.pi / 4)]),
+            quaternions=rr.Quaternion(xyzw=[0, 0, np.sin(np.pi / 4), np.cos(np.pi / 4)]),
             colors=[0, 255, 0],
             radii=0.01,
             labels="box/t0",
         ),
     )
 
-    rr.set_time_seconds("sim_time", 1)
+    rr.set_time("sim_time", duration=1)
     rr.log(
         "bbox_test/bbox",
         rr.Boxes3D(
             centers=np.array([1.0, 0.0, 0.0]),
             half_sizes=[1.0, 0.5, 0.25],
-            rotations=rr.Quaternion(xyzw=[0, 0, np.sin(np.pi / 4), np.cos(np.pi / 4)]),
+            quaternions=rr.Quaternion(xyzw=[0, 0, np.sin(np.pi / 4), np.cos(np.pi / 4)]),
             colors=[255, 255, 0],
             radii=0.02,
             labels="box/t1",
@@ -351,7 +270,7 @@ def run_bounding_box() -> None:
 
 
 def run_extension_component() -> None:
-    rr.set_time_seconds("sim_time", 0)
+    rr.set_time("sim_time", duration=0)
     # Hack to establish 2D view bounds
     rr.log("extension_components", rr.Boxes2D(array=[0, 0, 128, 128], array_format=rr.Box2DFormat.XYWH))
 
@@ -361,7 +280,7 @@ def run_extension_component() -> None:
     rr.log("extension_components/point", rr.AnyValues(confidence=0.9))
 
     # Batch points with extension
-    rr.set_time_seconds("sim_time", 1)
+    rr.set_time("sim_time", duration=1)
     rr.log(
         "extension_components/points",
         rr.Points2D(np.array([[32, 32], [32, 96], [96, 32], [96, 96]]), colors=(0, 255, 0)),
@@ -388,10 +307,10 @@ def run_gradient_image() -> None:
     rr.log("gradient_u16_0_1020", rr.Image(im))
 
 
-def run_image_tensors() -> None:
+def run_image_datatypes() -> None:
     # Make sure you use a colorful image with alpha!
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    img_path = f"{dir_path}/../../../crates/re_ui/data/logo_dark_mode.png"
+    img_path = f"{dir_path}/../../../crates/viewer/re_ui/data/logo_dark_mode.png"
     img_bgra = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
 
     img_rgba = cv2.cvtColor(img_bgra, cv2.COLOR_BGRA2RGBA)
@@ -406,7 +325,7 @@ def run_image_tensors() -> None:
         "uint16",
         "uint32",
         "uint64",
-        "int8",  # produces wrap-around when casting, producing ugly images, but clipping which is not useful as a test
+        "int8",
         "int16",
         "int32",
         "int64",
@@ -415,10 +334,17 @@ def run_image_tensors() -> None:
         "float64",
     ]
 
+    def cast_to(array, dtype):  # type: ignore[no-untyped-def]
+        if dtype == "int8":
+            # remap [0, 255] to [-128, 127]
+            return (array.astype("int16") - 128).astype("int8")
+        else:
+            return array.astype(dtype)
+
     for dtype in dtypes:
-        rr.log(f"img_rgba_{dtype}", rr.Image(img_rgba.astype(dtype)))
-        rr.log(f"img_rgb_{dtype}", rr.Image(img_rgb.astype(dtype)))
-        rr.log(f"img_gray_{dtype}", rr.Image(img_gray.astype(dtype)))
+        rr.log(f"img_rgba_{dtype}", rr.Image(cast_to(img_rgba, dtype)))
+        rr.log(f"img_rgb_{dtype}", rr.Image(cast_to(img_rgb, dtype)))
+        rr.log(f"img_gray_{dtype}", rr.Image(cast_to(img_gray, dtype)))
 
 
 def spawn_test(test: Callable[[], None], rec: rr.RecordingStream) -> None:
@@ -433,7 +359,7 @@ def main() -> None:
         "bbox": run_bounding_box,
         "extension_components": run_extension_component,
         "gradient_image": run_gradient_image,
-        "image_tensors": run_image_tensors,
+        "image_datatypes": run_image_datatypes,
         "log_cleared": run_log_cleared,
         "raw_mesh": raw_mesh,
         "rects": run_rects,
@@ -441,12 +367,15 @@ def main() -> None:
         "small_image": small_image,
         "text": run_text_logs,
         "transforms": transforms,
-        "transforms_rigid_3d": transforms_rigid_3d,
     }
 
     parser = argparse.ArgumentParser(description="Logs rich data using the Rerun SDK.")
     parser.add_argument(
-        "--test", type=str, default="most", help="What test to run", choices=["most", "all"] + list(tests.keys())
+        "--test",
+        type=str,
+        default="most",
+        help="What test to run",
+        choices=["most", "all"] + list(tests.keys()),
     )
     parser.add_argument(
         "--multithread",
@@ -473,7 +402,7 @@ def main() -> None:
         threads = []
         for name, test in tests.items():
             # Some tests are just a bit… too much
-            if args.test == "most" and name in ["image_tensors", "transforms"]:
+            if args.test == "most" and name in ["image_datatypes", "transforms"]:
                 continue
 
             if args.split_recordings:

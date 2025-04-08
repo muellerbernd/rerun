@@ -19,13 +19,13 @@ int main() {
     color_spiral(NUM_POINTS, 2.0f, 0.02f, 0.0f, 0.1f, points1, colors1);
     color_spiral(NUM_POINTS, 2.0f, 0.02f, TAU * 0.5f, 0.1f, points2, colors2);
 
-    rec.set_time("stable_time", 0s);
+    rec.set_time_duration("stable_time", 0s);
 
-    rec.log(
+    rec.log_static(
         "dna/structure/left",
         rerun::Points3D(points1).with_colors(colors1).with_radii({0.08f})
     );
-    rec.log(
+    rec.log_static(
         "dna/structure/right",
         rerun::Points3D(points2).with_colors(colors2).with_radii({0.08f})
     );
@@ -35,7 +35,7 @@ int main() {
         lines.emplace_back(rerun::LineStrip3D({points1[i].xyz, points2[i].xyz}));
     }
 
-    rec.log(
+    rec.log_static(
         "dna/structure/scaffolding",
         rerun::LineStrips3D(lines).with_colors(rerun::Color(128, 128, 128))
     );
@@ -51,7 +51,7 @@ int main() {
     for (int t = 0; t < 400; t++) {
         auto time = std::chrono::duration<float>(t) * 0.01f;
 
-        rec.set_time("stable_time", time);
+        rec.set_time_duration("stable_time", time);
 
         for (size_t i = 0; i < lines.size(); ++i) {
             float time_offset = time.count() + offsets[i];

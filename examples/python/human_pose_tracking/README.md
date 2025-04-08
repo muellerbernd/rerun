@@ -36,8 +36,8 @@ The visualizations in this example were created with the following Rerun code.
 For each processed video frame, all data sent to Rerun is associated with the two [`timelines`](https://www.rerun.io/docs/concepts/timelines) `time` and `frame_idx`.
 
 ```python
-rr.set_time_seconds("time", bgr_frame.time)
-rr.set_time_sequence("frame_idx", bgr_frame.idx)
+rr.set_time("time", duration=bgr_frame.time)
+rr.set_time("frame_idx", sequence=bgr_frame.idx)
 ```
 
 ### Video
@@ -83,7 +83,7 @@ rr.log("video/mask", rr.SegmentationImage(binary_segmentation_mask.astype(np.uin
 ### Body pose points
 Logging the body pose as a skeleton involves specifying the connectivity of its keypoints (i.e., pose landmarks), extracting the pose landmarks, and logging them as points to Rerun. In this example, both the 2D and 3D estimates from Mediapipe are visualized.
 
-The skeletons are logged through a combination of two archetypes. First, a timeless
+The skeletons are logged through a combination of two archetypes. First, a static
 [`ClassDescription`](https://www.rerun.io/docs/reference/types/datatypes/class_description) is logged, that contains the information which maps keypoint ids to labels and how to connect
 the keypoints. By defining these connections Rerun will automatically add lines between them. Mediapipe provides the `POSE_CONNECTIONS` variable which contains the list of `(from, to)` landmark indices that define the connections. Second, the actual keypoint positions are logged in 2D
 and 3D as [`Points2D`](https://www.rerun.io/docs/reference/types/archetypes/points2d) and
@@ -129,7 +129,6 @@ rr.log(
 
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

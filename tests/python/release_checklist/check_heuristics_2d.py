@@ -7,7 +7,7 @@ from uuid import uuid4
 import numpy as np
 import rerun as rr
 
-README = """
+README = """\
 # 2D Heuristics
 
 This checks whether the heuristics do the right thing with images.
@@ -15,13 +15,15 @@ This checks whether the heuristics do the right thing with images.
 Reset the blueprint to make sure you are viewing new heuristics and not a cached blueprint.
 
 ### Action
-You should see 4 space-views. Depending on timing you may end up with a 5th space-view at the root.
+You should see 4 views. Depending on timing you may end up with a 5th view at the root.
 This should go away when you reset.
 
-The four remaining space-views should be:
+The four remaining views should be:
  - `image1` with a red square
  - `image2` with a green square
- - `image3` with a blue square and overlapping green square (rendered teal)
+ - `image3` with a green square, which when hovered shows two popups:
+    - green square
+    - blue square
  - `segmented` with a red square and overlapping green square (rendered yellow)
 """
 
@@ -67,6 +69,8 @@ def run(args: Namespace) -> None:
 
     log_readme()
     log_images()
+
+    rr.send_blueprint(rr.blueprint.Blueprint(auto_layout=True, auto_views=True), make_active=True, make_default=True)
 
 
 if __name__ == "__main__":

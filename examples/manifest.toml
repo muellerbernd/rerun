@@ -34,6 +34,7 @@ examples = [
   # display order, most interesting first
   "droid_dataset",
   "ros_node",
+  "chess_robby_fischer",
   "nuscenes_dataset",
   "ros2_bridge",
   "ros_bridge",
@@ -44,6 +45,7 @@ examples = [
   "rrt_star",
   "rgbd",
   "nv12",
+  "imu_signals",
 ]
 
 [categories.generative-vision]
@@ -56,7 +58,11 @@ examples = [
   # display order, most interesting first
   "controlnet",
   "depth_guided_stable_diffusion",
+  "vista",
   "mcc",
+  "lerobot",
+  "depth_compare",
+  "mini_nvs_solver",
   "shape_pointe",
   "llm_embedding_ner",
   "tfrecord_loader",
@@ -72,11 +78,15 @@ examples = [
   # display order, most interesting first
   "detect_and_track_objects",
   "face_tracking",
+  "prompt_depth_anything",
+  "sam2_depthanything",
   "human_pose_tracking",
   "gesture_detection",
+  "ocr",
   "live_camera_edge_detection",
   "segment_anything_model",
   "tapir",
+  "ml_depth_pro",
 ]
 
 [categories.3d-reconstruction] # NOLINT
@@ -91,7 +101,11 @@ examples = [
   "open_photogrammetry_format",
   "kiss-icp",
   "differentiable_blocks_world",
-  "signed_distance_fields",
+  "mast3r_slam",
+  "stereo_vision_slam",
+  "glomap",
+  "hloc_glomap",
+  "instant_splat",
   "raw_mesh",
 ]
 
@@ -106,6 +120,8 @@ examples = [
   "ros_node",
   "ros2_bridge",
   "ros_bridge",
+  "notebook",
+  "notebook_neural_field_2d",
   "urdf_loader",
   "vrs",
   "revy",
@@ -114,6 +130,7 @@ examples = [
   "dicom_mri",
   "blueprint_stocks",
   "arflow",
+  "air_traffic_data",
 ]
 
 [categories.feature-showcase]
@@ -124,33 +141,43 @@ Showcase basic usage and specific features of Rerun.
 """
 examples = [
   # display order, most interesting first
+  "notebook",
   "clock",
   "dna",
+  "graphs",
   "log_file",
+  "openstreetmap_data",
   "minimal",
   "multiprocess_logging",
   "multithreading",
   "plots",
+  "live_scrolling_plot",
   "raw_mesh",
+  "air_traffic_data",
+  "imu_signals",
 ]
 
 # These are examples that we explicitly exclude from our website. You can check that all examples are either included
 # or explicitly excluded by running `python scripts/check_example_manifest_coverage.py`.
 [ignored]
 examples = [
+  "_empty_rerun_sdk",
+  "all_examples",
+  "custom_callback",
   "custom_collection_adapter",
   "custom_data_loader",
-  "custom_space_view",
   "custom_store_subscriber",
+  "custom_view",
+  "dataframe_query",
+  "drone_lidar",
   "extend_viewer_ui",
   "external_data_loader",
+  "graph_lattice",
   "incremental_logging",
   "minimal_serve",
-  "notebook",
   "shared_recording",
   "spawn_viewer",
   "stdio",
   "template",
-  "all_examples",
-  "_empty_rerun_sdk",
+  "viewer_callbacks",
 ]

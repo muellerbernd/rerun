@@ -1,6 +1,6 @@
 ---
 title: Migrating from 0.8 to 0.9
-order: 90
+order: 1000
 ---
 
 Rerun-0.9 introduces a new set of type-oriented logging APIs built on top of an updated, more concrete,
@@ -16,7 +16,7 @@ API has been replaced by one (or more) new Archetypes. You can find more informa
 
 In practice, the changes are mostly demonstrated in the following example:
 
-snippet: log_line
+snippet: migration/log_line
 
 Note that for any Archetype that supports batching the object names are now plural. For example, points are now logged
 with the `Points3D` archetype. Even if you are logging a single point, under the hood it is always implemented as a
@@ -76,9 +76,9 @@ Notes:
  * `image` has become `data`
 
 ### log_disconnected_space
-Replace with [DisconnectedSpace](../types/archetypes/disconnected_space.md)
+Replace with `DisconnectedSpace`
 
-Python docs: [DisconnectedSpace](https://ref.rerun.io/docs/python/stable/common/archetypes/#rerun.archetypes.DisconnectedSpace)
+Python docs: [DisconnectedSpace](https://ref.rerun.io/docs/python/0.21.0/common/archetypes/#rerun.archetypes.DisconnectedSpace)
 
 ### log_extension_components
 Replace with `AnyValues`

@@ -28,11 +28,12 @@ class QuaternionExt:
         return Quaternion(xyzw=np.array([0, 0, 0, 1], dtype=np.float32))
 
     @staticmethod
-    def native_to_pa_array_override(data: QuaternionArrayLike, data_type: pa.DataType) -> pa.Array:
+    def invalid() -> Quaternion:
         from . import Quaternion
 
-        if isinstance(data, Quaternion):
-            data = [data]
+        return Quaternion(xyzw=np.array([0, 0, 0, 0], dtype=np.float32))
 
-        quaternions = flat_np_float32_array_from_array_like([q.xyzw for q in data], 4)
+    @staticmethod
+    def native_to_pa_array_override(data: QuaternionArrayLike, data_type: pa.DataType) -> pa.Array:
+        quaternions = flat_np_float32_array_from_array_like(data, 4)
         return pa.FixedSizeListArray.from_arrays(quaternions, type=data_type)

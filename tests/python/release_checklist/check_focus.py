@@ -7,13 +7,13 @@ from uuid import uuid4
 import rerun as rr
 import rerun.blueprint as rrb
 
-README = """
+README = """\
 # Focus checks
 
-- Double-click on a box in the first space view
-    - check ONLY the corresponding space view expands and scrolls
+- Double-click on a box in the first view
+    - check ONLY the corresponding view expands and scrolls
     - check the streams view expands and scrolls
-- Double-click on the leaf "boxes3d" entity in the streams view, check both space views expand (manual scrolling might be needed).
+- Double-click on the leaf "boxes3d" entity in the streams view, check both views expand (manual scrolling might be needed).
 """
 
 
@@ -29,23 +29,24 @@ def blueprint() -> rrb.BlueprintLike:
     )
 
 
-def log_some_space_views() -> None:
-    rr.set_time_sequence("frame_nr", 0)
+def log_some_views() -> None:
+    rr.set_time("frame_nr", sequence=0)
 
     for i in range(500):
         rr.log(f"a_entity_{i}", rr.AnyValues(empty=0))
 
     rr.log(
         "/objects/boxes/boxes3d",
-        rr.Boxes3D(centers=[[0, 0, 0], [1, 1.5, 1.15], [3, 2, 1]], half_sizes=[0.5, 1, 0.5] * 3),
+        rr.Boxes3D(centers=[[0.0, 0.0, 0.0], [1.0, 1.5, 1.15], [3.0, 2.0, 1.0]], half_sizes=[0.5, 1.0, 0.5] * 3),
     )
 
 
 def run(args: Namespace) -> None:
-    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4(), default_blueprint=blueprint())
+    rr.script_setup(args, f"{os.path.basename(__file__)}", recording_id=uuid4())
+    rr.send_blueprint(blueprint(), make_active=True, make_default=True)
 
     log_readme()
-    log_some_space_views()
+    log_some_views()
 
 
 if __name__ == "__main__":

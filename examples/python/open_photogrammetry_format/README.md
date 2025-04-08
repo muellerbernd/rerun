@@ -1,5 +1,5 @@
 <!--[metadata]
-title = "Open Photogrammetry Format"
+title = "Open photogrammetry format"
 tags = ["2D", "3D", "Camera", "Photogrammetry"]
 thumbnail = "https://static.rerun.io/open-photogrammetry-format/c9bec43a3a3abd725a55ee8eb527a4c0cb01979b/480w.png"
 thumbnail_dimensions = [480, 480]
@@ -35,7 +35,7 @@ The visualizations in this example were created with the following Rerun code:
  For each processed frame, all data sent to Rerun is associated with specific time using [`timelines`](https://www.rerun.io/docs/concepts/timelines).
 
 ```python
-rr.set_time_sequence("image", i)
+rr.set_time("image", sequence=i)
 ```
 
 ### Video
@@ -70,7 +70,7 @@ rr.log("world/cameras/image/rgb", rr.Image(np.array(img)).compress(jpeg_quality=
 Point clouds from the project are logged as [`Points3D`](https://www.rerun.io/docs/reference/types/archetypes/points3d) archetype to the `world/points` entity.
 
 ```python
-rr.log("world/points", rr.Points3D(points.position, colors=points.color), timeless=True)
+rr.log("world/points", rr.Points3D(points.position, colors=points.color), static=True)
 ```
 
 
@@ -81,7 +81,6 @@ rr.log("world/points", rr.Points3D(points.position, colors=points.color), timele
 
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

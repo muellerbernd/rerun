@@ -17,6 +17,11 @@ The Python module is called `rerun`, while the package published on PyPI is `rer
 
 For other SDK languages see [Installing Rerun](https://www.rerun.io/docs/getting-started/installing-viewer).
 
+We also provide a [Jupyter widget](https://pypi.org/project/rerun-notebook/) for interactive data visualization in Jupyter notebooks:
+```sh
+pip3 install rerun-sdk[notebook]
+```
+
 ## Example
 ```py
 import rerun as rr
@@ -40,9 +45,9 @@ rr.log("points3d", rr.Points3D(positions, colors=colors))
 
 ## Logging and viewing in different processes
 
-You can run the viewer and logger in different processes.
+You can run the Viewer and logger in different processes.
 
-In one terminal, start up a viewer with a server that the SDK can connect to:
+In one terminal, start up a Viewer with a server that the SDK can connect to:
 ```sh
 python3 -m rerun
 ```
@@ -61,9 +66,9 @@ We use the [`pixi`](https://prefix.dev/) for managing dev-tool versioning, downl
 ```sh
 pixi run py-build --release
 ```
-To build SDK & viewer for python (or `pixi run py-build` for a debug build) and install it in the pixi environment.
+To build SDK & Viewer for Python (or `pixi run py-build` for a debug build) and install it in the Pixi environment.
 
-You can then run examples from the repository, either by making the pixi shell active with `pixi shell` and then running python or by using `pixi run`, e.g. `pixi run python examples/python/minimal/minimal.py`.
+You can then run examples from the repository, either by making the Pixi shell active with `pixi shell -e py` and then running Python or by using `pixi run -e py`, e.g. `pixi run -e py python examples/python/minimal/minimal.py`.
 
 Respectively, to build a wheel instead for manual install use:
 ```sh
@@ -78,3 +83,14 @@ Refer to [BUILD.md](../BUILD.md) for details on the various different build opti
 Prebuilt dev wheels from head of main are available at <https://github.com/rerun-io/rerun/releases/tag/prerelease>.
 
 While we try to keep the main branch usable at all times, it may be unstable occasionally. Use at your own risk.
+
+
+# Running Python unit tests
+```sh
+pixi run -e py py-build && pixi run -e py py-test
+```
+
+# Running specific Python unit tests
+```sh
+pixi run -e py py-build && pixi run -e py pytest rerun_py/tests/unit/test_tensor.py
+```

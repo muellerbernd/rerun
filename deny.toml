@@ -29,7 +29,10 @@ all-features = true
 [advisories]
 version = 2
 ignore = [
-  "RUSTSEC-2023-0081", # TODO(#5998): unmaintained crate "safemem" pulled in by "cargo-run-wasm"
+  "RUSTSEC-2024-0384", # Waiting for https://github.com/console-rs/indicatif/pull/666
+  "RUSTSEC-2024-0436", # https://rustsec.org/advisories/RUSTSEC-2024-0436 - paste is unmaintained - https://github.com/dtolnay/paste
+  "RUSTSEC-2024-0014", # https://rustsec.org/advisories/RUSTSEC-2024-0014 - generational-arena is unmaintained
+  "RUSTSEC-2025-0020", # https://rustsec.org/advisories/RUSTSEC-2025-0020  TODO(emilk): Update pyo3 to >=0.24.1 when we update arrow again
 ]
 
 
@@ -37,41 +40,39 @@ ignore = [
 multiple-versions = "deny"
 wildcards = "allow" # We use them for examples
 deny = [
-  { name = "cgmath" },      # We use glam
-  { name = "cmake" },       # Never again
-  { name = "derive_more" }, # Is very slow to compile; see https://github.com/rerun-io/rerun/issues/1316
-  { name = "egui_glow" },   # We use wgpu
-  { name = "openssl-sys" }, # We prefer rustls
-  { name = "openssl" },     # We prefer rustls
-  { name = "reqwest" },     # We prefer ureq - less dependencies
+  { name = "cgmath", reason = "We use glam" },
+  { name = "cmake", reason = "Never again" },
+  { name = "criterion", reason = "Only allowed as a dev-dependency for testing." },
+  { name = "derive_more", reason = "Is very slow to compile; see https://github.com/rerun-io/rerun/issues/1316" },
+  { name = "egui_glow", reason = "We use wgpu" },
+  { name = "insta", reason = "Only allowed as a dev-dependency for testing." },
+  { name = "openssl-sys", reason = "We prefer rustls" },
+  { name = "openssl", reason = "We prefer rustls" },
+
+  # We have to allow egui_kittest since we use it behind a `testing` feature flag, rather than just as a dev-dependency.
+  #{ name = "egui_kittest", reason = "Only allowed as a dev-dependency for testing." },
 ]
 skip = [
-  { name = "ahash" },             # Popular crate + fast release schedule = lots of crates still using old versions
-  { name = "async-fs" },          # Old version via accesskit
-  { name = "base64" },            # Too popular
-  { name = "cargo_metadata" },    # Older version used by ply-rs. It's small, and it's build-time only!
-  { name = "cfg_aliases" },       # Tiny macro-only crate. Winit and other use older version than us.
-  { name = "hashbrown" },         # Old version used by polar-rs
-  { name = "libloading" },        # Old version used by ash (vulkan binding), newer version used by khronos-egl
-  { name = "memoffset" },         # Small crate
-  { name = "prettyplease" },      # Old version being used by prost
-  { name = "pulldown-cmark" },    # Build-dependency via `ply-rs` (!). TODO(emilk): use a better crate for .ply parsing
-  { name = "raw-window-handle" }, # Pretty small crate; some crates still on old version
-  { name = "redox_syscall" },     # Plenty of versions in the wild
-  { name = "spin" },              # Old version used by rusttls
-  { name = "webpki-roots" },      # ureq and tungstenite are on different version 😭
-  { name = "windows" },           # Old version used by accesskit_windows, newer version used by wgpu
+  { name = "accesskit_consumer" }, # Duplicate as when used as dev dependency - eframe & egui_kittest are on different versions.
+  { name = "base64" },             # Too popular
+  { name = "cargo_metadata" },     # Older version used by ply-rs. It's small, and it's build-time only!
+  { name = "hashbrown" },          # Old version used by polar-rs
+  { name = "heck" },               # clap and snafu use different versions.
+  { name = "itertools" },          # once egui_tiles updates this can be removed
+  { name = "libloading" },         # datafusion-ffi needs an older version than wgpu
+  { name = "ordered-float" },      # Old version being used by parquet, but super small!
+  { name = "pollster" },           # rfd is still on 0.3
+  { name = "pulldown-cmark" },     # Build-dependency via `ply-rs` (!). TODO(emilk): use a better crate for .ply parsing
+  { name = "redox_syscall" },      # Plenty of versions in the wild
+  { name = "rustc-hash" },         # numpy with compatible pyo3 requires different version than wgpu
 ]
 skip-tree = [
-  { name = "async-io" },       # Old version via rfd
-  { name = "cargo-run-wasm" }, # Dev-tool
-  { name = "criterion" },      # dev-dependency
-  { name = "objc2" },          # old version via accesskit
-  { name = "prost-build" },    # only used in objectron example
-  { name = "prost-derive" },   # only used in objectron example
-  { name = "toml_edit" },      # Old version via egui-winit, newer used by rustdoc-json
+  { name = "quick-xml" }, # Old version via rfd
+  { name = "tower" },     # tonic depends on 0.4.3, but also transitively (axum) on 0.5.1
+  { name = "walkers" },   # TODO(#7876): suppress that when `walkers` is updated
+  { name = "windows" },   # Latest sysinfo uses 0.57 max, latest wgpu uses 0.58. See also https://github.com/GuillaumeGomez/sysinfo/pull/1338.
+  { name = "zbus" },      # Old version via rfd
 ]
-
 
 [licenses]
 version = 2
@@ -85,12 +86,13 @@ allow = [
   "BSL-1.0",                        # https://tldrlegal.com/license/boost-software-license-1.0-explained
   "CC0-1.0",                        # https://creativecommons.org/publicdomain/zero/1.0/
   "ISC",                            # https://www.tldrlegal.com/license/isc-license
-  "LicenseRef-UFL-1.0",             # See https://github.com/emilk/egui/issues/2321
   "MIT-0",                          # https://choosealicense.com/licenses/mit-0/
   "MIT",                            # https://tldrlegal.com/license/mit-license
   "MPL-2.0",                        # https://www.mozilla.org/en-US/MPL/2.0/FAQ/ - see Q11. Used by webpki-roots on Linux.
   "OFL-1.1",                        # https://spdx.org/licenses/OFL-1.1.html
   "OpenSSL",                        # https://www.openssl.org/source/license.html - used on Linux
+  "Ubuntu-font-1.0",                # https://ubuntu.com/legal/font-licence
+  "Unicode-3.0",                    # https://www.unicode.org/license.txt
   "Unicode-DFS-2016",               # https://spdx.org/licenses/Unicode-DFS-2016.html
   "Zlib",                           # https://tldrlegal.com/license/zlib-libpng-license-(zlib)
 ]

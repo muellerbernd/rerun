@@ -8,7 +8,7 @@ As mentioned in the [Entity Component](entity-component.md) overview, all entiti
 
 The first argument to the `log()` function is this path. Each time you log to a specific entity path you will update the entity, i.e. log a new instance of it along the timeline.
 
-It is possible to log multiple types of archetypes on the same entity path, but you should generally avoid mixing different kinds of geometric primitive. For example, logging a [`Points3D`](../reference/types/archetypes/points3d.md) point cloud on an entity path where a [`Mesh3D`](../reference/types/archetypes/mesh3d.md) was previously logged would overwrite the mesh's [`Position3D`](../reference/types/components/position3d.md) component with the point cloud's, but would leave the `triangle_indices` component untouched. The Rerun viewer would likely be unable to display the result. See the [Entity Component](entity-component.md) section for more information.
+It is possible to log multiple types of archetypes on the same entity path, but you should generally avoid mixing different kinds of geometric primitive. For example, logging a [`Points3D`](../reference/types/archetypes/points3d.md) point cloud on an entity path where a [`Mesh3D`](../reference/types/archetypes/mesh3d.md) was previously logged would overwrite the mesh's [`Position3D`](../reference/types/components/position3d.md) component with the point cloud's, but would leave the `triangle_indices` component untouched. The Rerun Viewer would likely be unable to display the result. See the [Entity Component](entity-component.md) section for more information.
 
 There _are_ valid reasons to logs different kinds of archetypes to the same entity path, though. For example, it's common to log a [`Transform3D`](../reference/types/archetypes/transform3d.md) along with some geometry it relates to (see the [Spaces and Transforms](spaces-and-transforms.md) for more info).
 
@@ -62,5 +62,6 @@ the relationship between that entity and its direct parent.
 
 ### Reserved paths
 
-The path prefix `rerun/` is considered reserved for use by the Rerun SDK itself and should not be used for logging
-user data. This is where Rerun will log additional information such as warnings.
+The path prefix `__` is considered reserved for use by the Rerun SDK itself and should not be used for logging
+user data. This is where Rerun will log additional information such as properties (`__properties`) and warnings
+(`__warnings`).

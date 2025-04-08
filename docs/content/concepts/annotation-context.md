@@ -33,7 +33,7 @@ In that case, the entire detected pose/skeleton is assigned a Class ID and each 
 
 To help you more with this (and similar) use-case(s), you can also define connections between keypoints
 as part of your annotation class description.
-The viewer will draw the connecting lines for all connected keypoints whenever that class is used.
+The Viewer will draw the connecting lines for all connected keypoints whenever that class is used.
 Just as with labels and colors this allows you to use the same connection information on any instance that class in your scene.
 
 Keypoints are currently only applicable to 2D and 3D points.
@@ -46,7 +46,7 @@ Keypoints are currently only applicable to 2D and 3D points.
 
 ### Logging an annotation context
 
-Annotation Context is typically logged as [timeless](timelines.md#timeless-data) data, but can change over time if needed.
+Annotation Context is typically logged as [static](timelines.md#static-data) data, but can change over time if needed.
 
 The Annotation Context is defined as a list of Class Descriptions that define how classes are styled
 (as well as optional keypoint style and connection).
@@ -56,7 +56,7 @@ Annotation contexts are logged with:
 * Python: 🐍[`rr.AnnotationContext`](https://ref.rerun.io/docs/python/stable/common/archetypes/#rerun.archetypes.AnnotationContext)
 * Rust: 🦀[`rerun::AnnotationContext`](https://docs.rs/rerun/latest/rerun/archetypes/struct.AnnotationContext.html#)
 
-snippet: annotation-context
+snippet: tutorials/annotation_context
 
 
 ## Affected entities

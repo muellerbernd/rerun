@@ -2,7 +2,7 @@
 """
 Example running Depth Guided Stable Diffusion 2.0.
 
-For more info see: https://github.com/Stability-AI/stablediffusion
+For more info see <https://github.com/Stability-AI/stablediffusion>
 """
 
 from __future__ import annotations
@@ -172,8 +172,8 @@ expense of slower inference. This parameter will be modulated by `strength`.
                     name="Output & Iteration",
                 ),
             ),
-            rrb.SelectionPanel(expanded=False),
-            rrb.TimePanel(expanded=False),
+            rrb.SelectionPanel(state="collapsed"),
+            rrb.TimePanel(state="collapsed"),
         ),
     )
 
@@ -182,7 +182,9 @@ expense of slower inference. This parameter will be modulated by `strength`.
         image_path = get_downloaded_path(args.dataset_dir, args.image)
 
     pipe = StableDiffusionDepth2ImgPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-2-depth", local_files_only=False, cache_dir=CACHE_DIR.absolute()
+        "stabilityai/stable-diffusion-2-depth",
+        local_files_only=False,
+        cache_dir=CACHE_DIR.absolute(),
     )
 
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():

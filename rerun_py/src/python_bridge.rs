@@ -1,32 +1,48 @@
-#![allow(clippy::needless_pass_by_value)] // A lot of arguments to #[pufunction] need to be by value
-#![allow(clippy::borrow_deref_ref)] // False positive due to #[pufunction] macro
-#![allow(unsafe_op_in_unsafe_fn)] // False positive due to #[pufunction] macro
+#![allow(clippy::borrow_deref_ref)] // False positive due to #[pyfunction] macro
+#![allow(clippy::needless_pass_by_value)] // A lot of arguments to #[pyfunction] need to be by value
+#![allow(clippy::too_many_arguments)] // We used named arguments, so this is fine
+#![allow(unsafe_op_in_unsafe_fn)] // False positive due to #[pyfunction] macro
 
-use std::collections::HashMap;
 use std::io::IsTerminal as _;
-use std::path::PathBuf;
+use std::{borrow::Borrow as _, collections::HashMap};
 
-use itertools::Itertools;
+use arrow::array::RecordBatch as ArrowRecordBatch;
+use itertools::Itertools as _;
 use pyo3::{
     exceptions::PyRuntimeError,
     prelude::*,
     types::{PyBytes, PyDict},
 };
 
+use re_log::ResultExt as _;
+use re_log_types::LogMsg;
 use re_log_types::{BlueprintActivationCommand, EntityPathPart, StoreKind};
+use re_sdk::sink::CallbackSink;
+use re_sdk::{external::re_log_encoding::encoder::encode_ref_as_bytes_local, TimeCell};
 use re_sdk::{
-    sink::MemorySinkStorage, time::TimePoint, EntityPath, RecordingStream, RecordingStreamBuilder,
-    StoreId,
+    sink::{BinaryStreamStorage, MemorySinkStorage},
+    time::TimePoint,
+    EntityPath, RecordingStream, RecordingStreamBuilder, StoreId,
 };
 
 #[cfg(feature = "web_viewer")]
 use re_web_viewer_server::WebViewerServerPort;
-#[cfg(feature = "web_viewer")]
-use re_ws_comms::RerunServerPort;
 
 // --- FFI ---
 
+trait PyRuntimeErrorExt {
+    fn wrap(err: impl std::error::Error, message: impl std::fmt::Display) -> pyo3::PyErr;
+}
+
+impl PyRuntimeErrorExt for PyRuntimeError {
+    fn wrap(err: impl std::error::Error, message: impl std::fmt::Display) -> pyo3::PyErr {
+        Self::new_err(format!("{message}: {err}"))
+    }
+}
+
 use once_cell::sync::{Lazy, OnceCell};
+
+use crate::dataframe::PyRecording;
 
 // The bridge needs to have complete control over the lifetimes of the individual recordings,
 // otherwise all the recording shutdown machinery (which includes deallocating C, Rust and Python
@@ -40,9 +56,8 @@ fn all_recordings() -> parking_lot::MutexGuard<'static, HashMap<StoreId, Recordi
     ALL_RECORDINGS.get_or_init(Default::default).lock()
 }
 
-type GarbageChunk = arrow2::chunk::Chunk<Box<dyn arrow2::array::Array>>;
-type GarbageSender = crossbeam::channel::Sender<GarbageChunk>;
-type GarbageReceiver = crossbeam::channel::Receiver<GarbageChunk>;
+type GarbageSender = crossbeam::channel::Sender<ArrowRecordBatch>;
+type GarbageReceiver = crossbeam::channel::Receiver<ArrowRecordBatch>;
 
 /// ## Release Callbacks
 ///
@@ -92,14 +107,16 @@ fn global_web_viewer_server(
 
 /// The python module is called "rerun_bindings".
 #[pymodule]
-fn rerun_bindings(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn rerun_bindings(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // NOTE: We do this here because some the inner init methods don't respond too kindly to being
     // called more than once.
-    re_log::setup_logging();
+    // The SDK should not be as noisy as the CLI, so we set log filter to warning if not specified otherwise.
+    re_log::setup_logging_with_filter(&re_log::log_filter_from_env_or_default("warn"));
 
     // These two components are necessary for imports to work
     m.add_class::<PyMemorySinkStorage>()?;
     m.add_class::<PyRecordingStream>()?;
+    m.add_class::<PyBinarySinkStorage>()?;
 
     // If this is a special RERUN_APP_ONLY context (launched via .spawn), we
     // can bypass everything else, which keeps us from preparing an SDK session
@@ -131,20 +148,23 @@ fn rerun_bindings(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 
     // sinks
     m.add_function(wrap_pyfunction!(is_enabled, m)?)?;
-    m.add_function(wrap_pyfunction!(connect, m)?)?;
-    m.add_function(wrap_pyfunction!(connect_blueprint, m)?)?;
+    m.add_function(wrap_pyfunction!(binary_stream, m)?)?;
+    m.add_function(wrap_pyfunction!(connect_grpc, m)?)?;
+    m.add_function(wrap_pyfunction!(connect_grpc_blueprint, m)?)?;
     m.add_function(wrap_pyfunction!(save, m)?)?;
     m.add_function(wrap_pyfunction!(save_blueprint, m)?)?;
     m.add_function(wrap_pyfunction!(stdout, m)?)?;
     m.add_function(wrap_pyfunction!(memory_recording, m)?)?;
-    m.add_function(wrap_pyfunction!(serve, m)?)?;
+    m.add_function(wrap_pyfunction!(set_callback_sink, m)?)?;
+    m.add_function(wrap_pyfunction!(serve_grpc, m)?)?;
+    m.add_function(wrap_pyfunction!(serve_web, m)?)?;
     m.add_function(wrap_pyfunction!(disconnect, m)?)?;
     m.add_function(wrap_pyfunction!(flush, m)?)?;
 
     // time
     m.add_function(wrap_pyfunction!(set_time_sequence, m)?)?;
-    m.add_function(wrap_pyfunction!(set_time_seconds, m)?)?;
-    m.add_function(wrap_pyfunction!(set_time_nanos, m)?)?;
+    m.add_function(wrap_pyfunction!(set_time_duration_nanos, m)?)?;
+    m.add_function(wrap_pyfunction!(set_time_timestamp_nanos_since_epoch, m)?)?;
     m.add_function(wrap_pyfunction!(disable_timeline, m)?)?;
     m.add_function(wrap_pyfunction!(reset_time, m)?)?;
 
@@ -152,7 +172,9 @@ fn rerun_bindings(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(log_arrow_msg, m)?)?;
     m.add_function(wrap_pyfunction!(log_file_from_path, m)?)?;
     m.add_function(wrap_pyfunction!(log_file_from_contents, m)?)?;
+    m.add_function(wrap_pyfunction!(send_arrow_chunk, m)?)?;
     m.add_function(wrap_pyfunction!(send_blueprint, m)?)?;
+    m.add_function(wrap_pyfunction!(send_recording, m)?)?;
 
     // misc
     m.add_function(wrap_pyfunction!(version, m)?)?;
@@ -161,22 +183,39 @@ fn rerun_bindings(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(escape_entity_path_part, m)?)?;
     m.add_function(wrap_pyfunction!(new_entity_path, m)?)?;
 
+    // properties
+    m.add_function(wrap_pyfunction!(new_property_entity_path, m)?)?;
+    m.add_function(wrap_pyfunction!(send_recording_name, m)?)?;
+    m.add_function(wrap_pyfunction!(send_recording_start_time_nanos, m)?)?;
+
+    use crate::video::asset_video_read_frame_timestamps_nanos;
+    m.add_function(wrap_pyfunction!(
+        asset_video_read_frame_timestamps_nanos,
+        m
+    )?)?;
+
+    // dataframes
+    crate::dataframe::register(m)?;
+
+    // catalog
+    crate::catalog::register(py, m)?;
+
     Ok(())
 }
 
 // --- Init ---
 
+/// Create a new recording stream.
 #[allow(clippy::fn_params_excessive_bools)]
 #[allow(clippy::struct_excessive_bools)]
-#[allow(clippy::too_many_arguments)]
 #[pyfunction]
 #[pyo3(signature = (
     application_id,
     recording_id=None,
     make_default=true,
     make_thread_default=true,
-    application_path=None,
     default_enabled=true,
+    send_properties=true,
 ))]
 fn new_recording(
     py: Python<'_>,
@@ -184,29 +223,16 @@ fn new_recording(
     recording_id: Option<String>,
     make_default: bool,
     make_thread_default: bool,
-    application_path: Option<PathBuf>,
     default_enabled: bool,
+    send_properties: bool,
 ) -> PyResult<PyRecordingStream> {
-    // The sentinel file we use to identify the official examples directory.
-    const SENTINEL_FILENAME: &str = ".rerun_examples";
-    let is_official_example = application_path.map_or(false, |mut path| {
-        // more than 4 layers would be really pushing it
-        for _ in 0..4 {
-            path.pop(); // first iteration is always a file path in our examples
-            if path.join(SENTINEL_FILENAME).exists() {
-                return true;
-            }
-        }
-        false
-    });
-
     let recording_id = if let Some(recording_id) = recording_id {
         StoreId::from_string(StoreKind::Recording, recording_id)
     } else {
         default_store_id(py, StoreKind::Recording, &application_id)
     };
 
-    let mut batcher_config = re_log_types::DataTableBatcherConfig::from_env().unwrap_or_default();
+    let mut batcher_config = re_chunk::ChunkBatcherConfig::from_env().unwrap_or_default();
     let on_release = |chunk| {
         GARBAGE_QUEUE.0.send(chunk).ok();
     };
@@ -214,10 +240,10 @@ fn new_recording(
 
     let recording = RecordingStreamBuilder::new(application_id)
         .batcher_config(batcher_config)
-        .is_official_example(is_official_example)
         .store_id(recording_id.clone())
         .store_source(re_log_types::StoreSource::PythonSdk(python_version(py)))
         .default_enabled(default_enabled)
+        .send_properties(send_properties)
         .buffered()
         .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
 
@@ -240,6 +266,7 @@ fn new_recording(
     Ok(PyRecordingStream(recording))
 }
 
+/// Create a new blueprint stream.
 #[allow(clippy::fn_params_excessive_bools)]
 #[pyfunction]
 #[pyo3(signature = (
@@ -259,7 +286,7 @@ fn new_blueprint(
     // blueprint id to avoid collisions.
     let blueprint_id = StoreId::random(StoreKind::Blueprint);
 
-    let mut batcher_config = re_log_types::DataTableBatcherConfig::from_env().unwrap_or_default();
+    let mut batcher_config = re_chunk::ChunkBatcherConfig::from_env().unwrap_or_default();
     let on_release = |chunk| {
         GARBAGE_QUEUE.0.send(chunk).ok();
     };
@@ -292,14 +319,27 @@ fn new_blueprint(
     Ok(PyRecordingStream(blueprint))
 }
 
+/// Shutdown the Rerun SDK.
 #[pyfunction]
 fn shutdown(py: Python<'_>) {
     re_log::debug!("Shutting down the Rerun SDK");
     // Release the GIL in case any flushing behavior needs to cleanup a python object.
     py.allow_threads(|| {
-        for (_, recording) in all_recordings().drain() {
+        // NOTE: Do **NOT** try and drain() `all_recordings` here.
+        //
+        // Doing so would drop the last remaining reference to these recordings, and therefore
+        // trigger their deallocation as well as the deallocation of all the Python and C++ data
+        // that they might transitively reference, but this is _NOT_ the right place to do so.
+        // This method is called automatically during shutdown via python's `atexit`, which is not
+        // a safepoint for deallocating these things, quite far from it.
+        //
+        // Calling `disconnect()` will already take care of flushing everything that can be flushed,
+        // and cleaning up everything that can be safely cleaned up, anyhow.
+        // Whatever's left can wait for the OS to clean it up.
+        for (_, recording) in all_recordings().iter() {
             recording.disconnect();
         }
+
         flush_garbage_queue();
     });
 }
@@ -310,6 +350,20 @@ fn shutdown(py: Python<'_>) {
 #[derive(Clone)]
 struct PyRecordingStream(RecordingStream);
 
+#[pymethods]
+impl PyRecordingStream {
+    /// Determine if this stream is operating in the context of a forked child process.
+    ///
+    /// This means the stream was created in the parent process. It now exists in the child
+    /// process by way of fork, but it is effectively a zombie since its batcher and sink
+    /// threads would not have been copied.
+    ///
+    /// Calling operations such as flush or set_sink will result in an error.
+    fn is_forked_child(&self) -> bool {
+        self.0.is_forked_child()
+    }
+}
+
 impl std::ops::Deref for PyRecordingStream {
     type Target = RecordingStream;
 
@@ -319,23 +373,27 @@ impl std::ops::Deref for PyRecordingStream {
     }
 }
 
+/// Get the current recording stream's application ID.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn get_application_id(recording: Option<&PyRecordingStream>) -> Option<String> {
     get_data_recording(recording)?
         .store_info()
         .map(|info| info.application_id.to_string())
 }
 
+/// Get the current recording stream's recording ID.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn get_recording_id(recording: Option<&PyRecordingStream>) -> Option<String> {
     get_data_recording(recording)?
         .store_info()
         .map(|info| info.store_id.to_string())
 }
 
-/// Returns the currently active data recording in the global scope, if any; fallbacks to the
-/// specified recording otherwise, if any.
+/// Returns the currently active data recording in the global scope, if any; fallbacks to the specified recording otherwise, if any.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn get_data_recording(recording: Option<&PyRecordingStream>) -> Option<PyRecordingStream> {
     RecordingStream::get_quiet(
         re_sdk::StoreKind::Recording,
@@ -360,6 +418,7 @@ fn cleanup_if_forked_child() {
 ///
 /// Returns the previous one, if any.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn set_global_data_recording(
     py: Python<'_>,
     recording: Option<&PyRecordingStream>,
@@ -392,6 +451,7 @@ fn get_thread_local_data_recording() -> Option<PyRecordingStream> {
 ///
 /// Returns the previous one, if any.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn set_thread_local_data_recording(
     py: Python<'_>,
     recording: Option<&PyRecordingStream>,
@@ -414,9 +474,9 @@ fn set_thread_local_data_recording(
     })
 }
 
-/// Returns the currently active blueprint recording in the global scope, if any; fallbacks to the
-/// specified recording otherwise, if any.
+/// Returns the currently active blueprint recording in the global scope, if any; fallbacks to the specified recording otherwise, if any.
 #[pyfunction]
+#[pyo3(signature = (overrides=None))]
 fn get_blueprint_recording(overrides: Option<&PyRecordingStream>) -> Option<PyRecordingStream> {
     RecordingStream::get_quiet(
         re_sdk::StoreKind::Blueprint,
@@ -435,6 +495,7 @@ fn get_global_blueprint_recording() -> Option<PyRecordingStream> {
 ///
 /// Returns the previous one, if any.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn set_global_blueprint_recording(
     py: Python<'_>,
     recording: Option<&PyRecordingStream>,
@@ -467,6 +528,7 @@ fn get_thread_local_blueprint_recording() -> Option<PyRecordingStream> {
 ///
 /// Returns the previous one, if any.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn set_thread_local_blueprint_recording(
     py: Python<'_>,
     recording: Option<&PyRecordingStream>,
@@ -491,9 +553,11 @@ fn set_thread_local_blueprint_recording(
 
 // --- Sinks ---
 
+/// Whether the recording stream enabled.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn is_enabled(recording: Option<&PyRecordingStream>) -> bool {
-    get_data_recording(recording).map_or(false, |rec| rec.is_enabled())
+    get_data_recording(recording).is_some_and(|rec| rec.is_enabled())
 }
 
 /// Helper for forwarding the blueprint memory-sink representation to a given sink
@@ -509,31 +573,39 @@ fn send_mem_sink_as_default_blueprint(
     }
 }
 
+/// Spawn a new viewer.
 #[pyfunction]
-#[pyo3(signature = (port = 9876, memory_limit = "75%".to_owned(), executable_name = "rerun".to_owned(), executable_path = None, extra_args = vec![]))]
+#[pyo3(signature = (port = 9876, memory_limit = "75%".to_owned(), hide_welcome_screen = false, detach_process = true, executable_name = "rerun".to_owned(), executable_path = None, extra_args = vec![], extra_env = vec![]))]
 fn spawn(
     port: u16,
     memory_limit: String,
+    hide_welcome_screen: bool,
+    detach_process: bool,
     executable_name: String,
     executable_path: Option<String>,
     extra_args: Vec<String>,
+    extra_env: Vec<(String, String)>,
 ) -> PyResult<()> {
     let spawn_opts = re_sdk::SpawnOptions {
         port,
         wait_for_bind: true,
         memory_limit,
+        hide_welcome_screen,
+        detach_process,
         executable_name,
         executable_path,
         extra_args,
+        extra_env,
     };
 
     re_sdk::spawn(&spawn_opts).map_err(|err| PyRuntimeError::new_err(err.to_string()))
 }
 
+/// Connect the recording stream to a remote Rerun Viewer on the given HTTP(S) URL.
 #[pyfunction]
-#[pyo3(signature = (addr = None, flush_timeout_sec=re_sdk::default_flush_timeout().unwrap().as_secs_f32(), default_blueprint = None, recording = None))]
-fn connect(
-    addr: Option<String>,
+#[pyo3(signature = (url, flush_timeout_sec=re_sdk::default_flush_timeout().expect("always Some()").as_secs_f32(), default_blueprint = None, recording = None))]
+fn connect_grpc(
+    url: Option<String>,
     flush_timeout_sec: Option<f32>,
     default_blueprint: Option<&PyMemorySinkStorage>,
     recording: Option<&PyRecordingStream>,
@@ -543,25 +615,21 @@ fn connect(
         return Ok(());
     };
 
+    let url = url.unwrap_or_else(|| re_sdk::DEFAULT_CONNECT_URL.to_owned());
+    let uri = url
+        .parse::<re_uri::ProxyUri>()
+        .map_err(|err| PyRuntimeError::wrap(err, format!("invalid endpoint {url:?}")))?;
+
     if re_sdk::forced_sink_path().is_some() {
         re_log::debug!("Ignored call to `connect()` since _RERUN_TEST_FORCE_SAVE is set");
         return Ok(());
     }
 
-    let addr = if let Some(addr) = addr {
-        addr.parse()?
-    } else {
-        re_sdk::default_server_addr()
-    };
-
-    let flush_timeout = flush_timeout_sec.map(std::time::Duration::from_secs_f32);
-
-    // The call to connect may internally flush.
-    // Release the GIL in case any flushing behavior needs to cleanup a python object.
     py.allow_threads(|| {
-        // We create the sink manually so we can send the default blueprint
-        // first before the rest of the current recording stream.
-        let sink = re_sdk::sink::TcpSink::new(addr, flush_timeout);
+        let sink = re_sdk::sink::GrpcSink::new(
+            uri,
+            flush_timeout_sec.map(std::time::Duration::from_secs_f32),
+        );
 
         if let Some(default_blueprint) = default_blueprint {
             send_mem_sink_as_default_blueprint(&sink, default_blueprint);
@@ -576,20 +644,16 @@ fn connect(
 }
 
 #[pyfunction]
-#[pyo3(signature = (addr, make_active, make_default, blueprint_stream))]
+#[pyo3(signature = (url, make_active, make_default, blueprint_stream))]
 /// Special binding for directly sending a blueprint stream to a connection.
-fn connect_blueprint(
-    addr: Option<String>,
+fn connect_grpc_blueprint(
+    url: Option<String>,
     make_active: bool,
     make_default: bool,
     blueprint_stream: &PyRecordingStream,
     py: Python<'_>,
 ) -> PyResult<()> {
-    let addr = if let Some(addr) = addr {
-        addr.parse()?
-    } else {
-        re_sdk::default_server_addr()
-    };
+    let url = url.unwrap_or_else(|| re_sdk::DEFAULT_CONNECT_URL.to_owned());
 
     if let Some(blueprint_id) = (*blueprint_stream).store_info().map(|info| info.store_id) {
         // The call to save, needs to flush.
@@ -606,10 +670,12 @@ fn connect_blueprint(
 
             blueprint_stream.record_msg(activation_cmd.into());
 
-            blueprint_stream.connect_opts(addr, None);
+            blueprint_stream
+                .connect_grpc_opts(url, None)
+                .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
             flush_garbage_queue();
-        });
-        Ok(())
+            Ok(())
+        })
     } else {
         Err(PyRuntimeError::new_err(
             "Blueprint stream has no store info".to_owned(),
@@ -617,6 +683,7 @@ fn connect_blueprint(
     }
 }
 
+/// Save the recording stream to a file.
 #[pyfunction]
 #[pyo3(signature = (path, default_blueprint = None, recording = None))]
 fn save(
@@ -686,6 +753,7 @@ fn save_blueprint(
     }
 }
 
+/// Save to stdout.
 #[pyfunction]
 #[pyo3(signature = (default_blueprint = None, recording = None))]
 fn stdout(
@@ -727,7 +795,7 @@ fn stdout(
     })
 }
 
-/// Create an in-memory rrd file
+/// Create an in-memory rrd file.
 #[pyfunction]
 #[pyo3(signature = (recording = None))]
 fn memory_recording(
@@ -746,6 +814,51 @@ fn memory_recording(
     })
 }
 
+/// Set callback sink.
+#[pyfunction]
+#[pyo3(signature = (callback, recording = None))]
+fn set_callback_sink(callback: PyObject, recording: Option<&PyRecordingStream>, py: Python<'_>) {
+    let Some(rec) = get_data_recording(recording) else {
+        return;
+    };
+
+    let callback = move |msgs: &[LogMsg]| {
+        Python::with_gil(|py| {
+            let data = encode_ref_as_bytes_local(msgs.iter().map(Ok)).ok_or_log_error()?;
+            let bytes = PyBytes::new(py, &data);
+            callback.bind(py).call1((bytes,)).ok_or_log_error()?;
+            Some(())
+        });
+    };
+
+    // The call to `set_sink` may internally flush.
+    // Release the GIL in case any flushing behavior needs to cleanup a python object.
+    py.allow_threads(|| {
+        rec.set_sink(Box::new(CallbackSink::new(callback)));
+        flush_garbage_queue();
+    });
+}
+
+/// Create a new binary stream sink, and return the associated binary stream.
+#[pyfunction]
+#[pyo3(signature = (recording = None))]
+fn binary_stream(
+    recording: Option<&PyRecordingStream>,
+    py: Python<'_>,
+) -> Option<PyBinarySinkStorage> {
+    let recording = get_data_recording(recording)?;
+
+    // The call to memory may internally flush.
+    // Release the GIL in case any flushing behavior needs to cleanup a python object.
+    let inner = py.allow_threads(|| {
+        let storage = recording.binary_stream();
+        flush_garbage_queue();
+        storage
+    });
+
+    Some(PyBinarySinkStorage { inner })
+}
+
 #[pyclass(frozen)]
 struct PyMemorySinkStorage {
     // So we can flush when needed!
@@ -757,11 +870,12 @@ impl PyMemorySinkStorage {
     /// Concatenate the contents of the [`MemorySinkStorage`] as bytes.
     ///
     /// Note: This will do a blocking flush before returning!
+    #[pyo3(signature = (concat=None))]
     fn concat_as_bytes<'p>(
         &self,
-        concat: Option<&PyMemorySinkStorage>,
+        concat: Option<&Self>,
         py: Python<'p>,
-    ) -> PyResult<&'p PyBytes> {
+    ) -> PyResult<Bound<'p, PyBytes>> {
         // Release the GIL in case any flushing behavior needs to cleanup a python object.
         py.allow_threads(|| {
             let concat_bytes = MemorySinkStorage::concat_memory_sinks_as_bytes(
@@ -797,7 +911,7 @@ impl PyMemorySinkStorage {
     /// Drain all messages logged to the [`MemorySinkStorage`] and return as bytes.
     ///
     /// This will do a blocking flush before returning!
-    fn drain_as_bytes<'p>(&self, py: Python<'p>) -> PyResult<&'p PyBytes> {
+    fn drain_as_bytes<'p>(&self, py: Python<'p>) -> PyResult<Bound<'p, PyBytes>> {
         // Release the GIL in case any flushing behavior needs to cleanup a python object.
         py.allow_threads(|| {
             let bytes = self.inner.drain_as_bytes();
@@ -811,14 +925,104 @@ impl PyMemorySinkStorage {
     }
 }
 
+#[pyclass(frozen)]
+struct PyBinarySinkStorage {
+    /// The underlying binary sink storage.
+    inner: BinaryStreamStorage,
+}
+
+#[pymethods]
+impl PyBinarySinkStorage {
+    /// Read the bytes from the binary sink.
+    ///
+    /// If `flush` is `true`, the sink will be flushed before reading.
+    #[pyo3(signature = (*, flush = true))]
+    fn read<'p>(&self, flush: bool, py: Python<'p>) -> Bound<'p, PyBytes> {
+        // Release the GIL in case any flushing behavior needs to cleanup a python object.
+        PyBytes::new(
+            py,
+            py.allow_threads(|| {
+                if flush {
+                    self.inner.flush();
+                }
+
+                let bytes = self.inner.read();
+
+                flush_garbage_queue();
+
+                bytes
+            })
+            .as_slice(),
+        )
+    }
+
+    /// Flush the binary sink manually.
+    fn flush(&self, py: Python<'_>) {
+        // Release the GIL in case any flushing behavior needs to cleanup a python object.
+        py.allow_threads(|| {
+            self.inner.flush();
+            flush_garbage_queue();
+        });
+    }
+}
+
+/// Spawn a gRPC server which an SDK or Viewer can connect to.
+#[pyfunction]
+#[pyo3(signature = (grpc_port, server_memory_limit, default_blueprint = None, recording = None))]
+fn serve_grpc(
+    grpc_port: Option<u16>,
+    server_memory_limit: String,
+    default_blueprint: Option<&PyMemorySinkStorage>,
+    recording: Option<&PyRecordingStream>,
+) -> PyResult<()> {
+    #[cfg(feature = "server")]
+    {
+        let Some(recording) = get_data_recording(recording) else {
+            return Ok(());
+        };
+
+        if re_sdk::forced_sink_path().is_some() {
+            re_log::debug!("Ignored call to `serve_grpc()` since _RERUN_TEST_FORCE_SAVE is set");
+            return Ok(());
+        }
+
+        let server_memory_limit = re_memory::MemoryLimit::parse(&server_memory_limit)
+            .map_err(|err| PyRuntimeError::new_err(format!("Bad server_memory_limit: {err}:")))?;
+
+        let sink = re_sdk::grpc_server::GrpcServerSink::new(
+            "0.0.0.0",
+            grpc_port.unwrap_or(re_grpc_server::DEFAULT_SERVER_PORT),
+            server_memory_limit,
+        )
+        .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
+
+        if let Some(default_blueprint) = default_blueprint {
+            send_mem_sink_as_default_blueprint(&sink, default_blueprint);
+        }
+
+        recording.set_sink(Box::new(sink));
+
+        Ok(())
+    }
+
+    #[cfg(not(feature = "server"))]
+    {
+        let _ = (grpc_port, server_memory_limit, default_blueprint, recording);
+
+        Err(PyRuntimeError::new_err(
+            "The Rerun SDK was not compiled with the 'server' feature",
+        ))
+    }
+}
+
 /// Serve a web-viewer.
 #[allow(clippy::unnecessary_wraps)] // False positive
 #[pyfunction]
-#[pyo3(signature = (open_browser, web_port, ws_port, server_memory_limit, default_blueprint = None, recording = None))]
-fn serve(
+#[pyo3(signature = (open_browser, web_port, grpc_port, server_memory_limit, default_blueprint = None, recording = None))]
+fn serve_web(
     open_browser: bool,
     web_port: Option<u16>,
-    ws_port: Option<u16>,
+    grpc_port: Option<u16>,
     server_memory_limit: String,
     default_blueprint: Option<&PyMemorySinkStorage>,
     recording: Option<&PyRecordingStream>,
@@ -841,7 +1045,7 @@ fn serve(
             open_browser,
             "0.0.0.0",
             web_port.map(WebViewerServerPort).unwrap_or_default(),
-            ws_port.map(RerunServerPort).unwrap_or_default(),
+            grpc_port.unwrap_or(re_grpc_server::DEFAULT_SERVER_PORT),
             server_memory_limit,
         )
         .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
@@ -860,7 +1064,7 @@ fn serve(
         _ = default_blueprint;
         _ = recording;
         _ = web_port;
-        _ = ws_port;
+        _ = grpc_port;
         _ = open_browser;
         _ = server_memory_limit;
         Err(PyRuntimeError::new_err(
@@ -874,6 +1078,7 @@ fn serve(
 /// Subsequent log messages will be buffered and either sent on the next call to `connect`,
 /// or shown with `show`.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn disconnect(py: Python<'_>, recording: Option<&PyRecordingStream>) {
     let Some(recording) = get_data_recording(recording) else {
         return;
@@ -885,8 +1090,9 @@ fn disconnect(py: Python<'_>, recording: Option<&PyRecordingStream>) {
     });
 }
 
-/// Block until outstanding data has been flushed to the sink
+/// Block until outstanding data has been flushed to the sink.
 #[pyfunction]
+#[pyo3(signature = (blocking, recording=None))]
 fn flush(py: Python<'_>, blocking: bool, recording: Option<&PyRecordingStream>) {
     let Some(recording) = get_data_recording(recording) else {
         return;
@@ -904,31 +1110,43 @@ fn flush(py: Python<'_>, blocking: bool, recording: Option<&PyRecordingStream>) 
 
 // --- Time ---
 
+/// Set the current time for this thread as an integer sequence.
 #[pyfunction]
+#[pyo3(signature = (timeline, sequence, recording=None))]
 fn set_time_sequence(timeline: &str, sequence: i64, recording: Option<&PyRecordingStream>) {
     let Some(recording) = get_data_recording(recording) else {
         return;
     };
-    recording.set_time_sequence(timeline, sequence);
+    recording.set_time(timeline, TimeCell::from_sequence(sequence));
 }
 
+/// Set the current duration for this thread in nanoseconds.
 #[pyfunction]
-fn set_time_seconds(timeline: &str, seconds: f64, recording: Option<&PyRecordingStream>) {
+#[pyo3(signature = (timeline, nanos, recording=None))]
+fn set_time_duration_nanos(timeline: &str, nanos: i64, recording: Option<&PyRecordingStream>) {
     let Some(recording) = get_data_recording(recording) else {
         return;
     };
-    recording.set_time_seconds(timeline, seconds);
+    recording.set_time(timeline, TimeCell::from_duration_nanos(nanos));
 }
 
+/// Set the current time for this thread in nanoseconds.
 #[pyfunction]
-fn set_time_nanos(timeline: &str, nanos: i64, recording: Option<&PyRecordingStream>) {
+#[pyo3(signature = (timeline, nanos, recording=None))]
+fn set_time_timestamp_nanos_since_epoch(
+    timeline: &str,
+    nanos: i64,
+    recording: Option<&PyRecordingStream>,
+) {
     let Some(recording) = get_data_recording(recording) else {
         return;
     };
-    recording.set_time_nanos(timeline, nanos);
+    recording.set_time(timeline, TimeCell::from_timestamp_nanos_since_epoch(nanos));
 }
 
+/// Clear time information for the specified timeline on this thread.
 #[pyfunction]
+#[pyo3(signature = (timeline, recording=None))]
 fn disable_timeline(timeline: &str, recording: Option<&PyRecordingStream>) {
     let Some(recording) = get_data_recording(recording) else {
         return;
@@ -936,7 +1154,9 @@ fn disable_timeline(timeline: &str, recording: Option<&PyRecordingStream>) {
     recording.disable_timeline(timeline);
 }
 
+/// Clear all timeline information on this thread.
 #[pyfunction]
+#[pyo3(signature = (recording=None))]
 fn reset_time(recording: Option<&PyRecordingStream>) {
     let Some(recording) = get_data_recording(recording) else {
         return;
@@ -946,6 +1166,7 @@ fn reset_time(recording: Option<&PyRecordingStream>) {
 
 // --- Log special ---
 
+/// Log an arrow message.
 #[pyfunction]
 #[pyo3(signature = (
     entity_path,
@@ -956,7 +1177,7 @@ fn reset_time(recording: Option<&PyRecordingStream>) {
 fn log_arrow_msg(
     py: Python<'_>,
     entity_path: &str,
-    components: &PyDict,
+    components: Bound<'_, PyDict>,
     static_: bool,
     recording: Option<&PyRecordingStream>,
 ) -> PyResult<()> {
@@ -969,19 +1190,58 @@ fn log_arrow_msg(
     // It's important that we don't hold the session lock while building our arrow component.
     // the API we call to back through pyarrow temporarily releases the GIL, which can cause
     // a deadlock.
-    let row = crate::arrow::build_data_row_from_components(
-        &entity_path,
-        components,
-        &TimePoint::default(),
-    )?;
+    let row = crate::arrow::build_row_from_components(&components, &TimePoint::default())?;
 
-    recording.record_row(row, !static_);
+    recording.record_row(entity_path, row, !static_);
 
     py.allow_threads(flush_garbage_queue);
 
     Ok(())
 }
 
+/// Directly send an arrow chunk to the recording stream.
+///
+/// Params
+/// ------
+/// entity_path: `str`
+///     The entity path to log the chunk to.
+/// timelines: `Dict[str, arrow::Int64Array]`
+///     A dictionary mapping timeline names to their values.
+/// components: `Dict[str, arrow::ListArray]`
+///     A dictionary mapping component names to their values.
+#[pyfunction]
+#[pyo3(signature = (
+    entity_path,
+    timelines,
+    components,
+    recording=None,
+))]
+fn send_arrow_chunk(
+    py: Python<'_>,
+    entity_path: &str,
+    timelines: Bound<'_, PyDict>,
+    components: Bound<'_, PyDict>,
+    recording: Option<&PyRecordingStream>,
+) -> PyResult<()> {
+    let Some(recording) = get_data_recording(recording) else {
+        return Ok(());
+    };
+
+    let entity_path = EntityPath::parse_forgiving(entity_path);
+
+    // It's important that we don't hold the session lock while building our arrow component.
+    // the API we call to back through pyarrow temporarily releases the GIL, which can cause
+    // a deadlock.
+    let chunk = crate::arrow::build_chunk_from_components(entity_path, &timelines, &components)?;
+
+    recording.send_chunk(chunk);
+
+    py.allow_threads(flush_garbage_queue);
+
+    Ok(())
+}
+
+/// Log a file by path.
 #[pyfunction]
 #[pyo3(signature = (
     file_path,
@@ -999,6 +1259,7 @@ fn log_file_from_path(
     log_file(py, file_path, None, entity_path_prefix, static_, recording)
 }
 
+/// Log a file by contents.
 #[pyfunction]
 #[pyo3(signature = (
     file_path,
@@ -1083,15 +1344,32 @@ fn send_blueprint(
     }
 }
 
+/// Send all chunks from a [`PyRecording`] to the given recording stream.
+///
+/// .. warning::
+///     ⚠️ This API is experimental and may change or be removed in future versions! ⚠️
+#[pyfunction]
+#[pyo3(signature = (rrd, recording = None))]
+fn send_recording(rrd: &PyRecording, recording: Option<&PyRecordingStream>) {
+    let Some(recording) = get_data_recording(recording) else {
+        return;
+    };
+
+    let store = rrd.store.read();
+    for chunk in store.iter_chunks() {
+        recording.send_chunk((**chunk).clone());
+    }
+}
+
 // --- Misc ---
 
-/// Return a verbose version string
+/// Return a verbose version string.
 #[pyfunction]
 fn version() -> String {
     re_build_info::build_info!().to_string()
 }
 
-/// Get a url to an instance of the web-viewer
+/// Get an url to an instance of the web-viewer.
 ///
 /// This may point to app.rerun.io or localhost depending on
 /// whether [`start_web_viewer_server()`] was called.
@@ -1121,7 +1399,7 @@ fn get_app_url() -> String {
 }
 
 // TODO(jleibs) expose this as a python type
-/// Start a web server to host the run web-assets
+/// Start a web server to host the run web-assets.
 #[pyfunction]
 fn start_web_viewer_server(port: u16) -> PyResult<()> {
     #[allow(clippy::unnecessary_wraps)]
@@ -1150,20 +1428,70 @@ fn start_web_viewer_server(port: u16) -> PyResult<()> {
     }
 }
 
+/// Escape an entity path.
 #[pyfunction]
 fn escape_entity_path_part(part: &str) -> String {
     EntityPathPart::from(part).escaped_string()
 }
 
+/// Create an entity path.
 #[pyfunction]
-fn new_entity_path(parts: Vec<&str>) -> String {
-    let path = EntityPath::from(parts.into_iter().map(EntityPathPart::from).collect_vec());
-    path.to_string()
+fn new_entity_path(parts: Vec<Bound<'_, pyo3::types::PyString>>) -> PyResult<String> {
+    let parts: PyResult<Vec<_>> = parts.iter().map(|part| part.to_cow()).collect();
+    let path = EntityPath::from(
+        parts?
+            .into_iter()
+            .map(|part| EntityPathPart::from(part.borrow()))
+            .collect_vec(),
+    );
+    Ok(path.to_string())
+}
+
+// --- Properties ---
+
+/// Create a property entity path.
+#[pyfunction]
+fn new_property_entity_path(parts: Vec<Bound<'_, pyo3::types::PyString>>) -> PyResult<String> {
+    let parts: PyResult<Vec<_>> = parts.iter().map(|part| part.to_cow()).collect();
+    let path = EntityPath::from(
+        parts?
+            .into_iter()
+            .map(|part| EntityPathPart::from(part.borrow()))
+            .collect_vec(),
+    );
+    Ok(EntityPath::properties().join(&path).to_string())
+}
+
+/// Send the name of the recording.
+#[pyfunction]
+#[pyo3(signature = (name, recording=None))]
+fn send_recording_name(name: &str, recording: Option<&PyRecordingStream>) -> PyResult<()> {
+    let Some(recording) = get_data_recording(recording) else {
+        return Ok(());
+    };
+    recording
+        .send_recording_name(name)
+        .map_err(|err| PyRuntimeError::new_err(err.to_string()))
+}
+
+/// Send the start time of the recording.
+#[pyfunction]
+#[pyo3(signature = (nanos, recording=None))]
+fn send_recording_start_time_nanos(
+    nanos: i64,
+    recording: Option<&PyRecordingStream>,
+) -> PyResult<()> {
+    let Some(recording) = get_data_recording(recording) else {
+        return Ok(());
+    };
+    recording
+        .send_recording_start_time(nanos)
+        .map_err(|err| PyRuntimeError::new_err(err.to_string()))
 }
 
 // --- Helpers ---
 
-fn python_version(py: Python<'_>) -> re_log_types::PythonVersion {
+pub fn python_version(py: Python<'_>) -> re_log_types::PythonVersion {
     let py_version = py.version_info();
     re_log_types::PythonVersion {
         major: py_version.major,
@@ -1216,13 +1544,13 @@ fn authkey(py: Python<'_>) -> PyResult<Vec<u8>> {
     let locals = PyDict::new(py);
 
     py.run(
-        r#"
+        cr#"
 import multiprocessing
 # authkey is the same for child and parent processes, so this is how we know we're the same
 authkey = multiprocessing.current_process().authkey
             "#,
         None,
-        Some(locals),
+        Some(&locals),
     )
     .and_then(|()| {
         locals
@@ -1232,7 +1560,8 @@ authkey = multiprocessing.current_process().authkey
     .and_then(|authkey| {
         authkey
             .downcast()
+            .cloned()
             .map_err(|err| PyRuntimeError::new_err(err.to_string()))
     })
-    .map(|authkey: &PyBytes| authkey.as_bytes().to_vec())
+    .map(|authkey: Bound<'_, PyBytes>| authkey.as_bytes().to_vec())
 }

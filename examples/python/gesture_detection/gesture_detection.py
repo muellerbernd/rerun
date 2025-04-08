@@ -7,8 +7,9 @@ import argparse
 import itertools
 import logging
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Final, Iterable
+from typing import Final
 
 import cv2
 import mediapipe as mp
@@ -35,7 +36,7 @@ SAMPLE_VIDEO_URL = "https://storage.googleapis.com/rerun-example-datasets/hand_g
 
 # Emojis from https://github.com/googlefonts/noto-emoji/tree/main
 GESTURE_URL = (
-    "https://raw.githubusercontent.com/googlefonts/noto-emoji/9cde38ef5ee6f090ce23f9035e494cb390a2b051/png" "/128/"
+    "https://raw.githubusercontent.com/googlefonts/noto-emoji/9cde38ef5ee6f090ce23f9035e494cb390a2b051/png/128/"
 )
 # Mapping of gesture categories to corresponding emojis
 GESTURE_PICTURES = {
@@ -57,7 +58,7 @@ class GestureDetectorLogger:
     This class provides logging and utility functions for handling gesture recognition.
 
     For more information on MediaPipe Gesture Detection:
-    https://developers.google.com/mediapipe/solutions/vision/gesture_recognizer
+    <https://developers.google.com/mediapipe/solutions/vision/gesture_recognizer>
     """
 
     # URL to the pre-trained MediaPipe Gesture Detection model
@@ -65,7 +66,7 @@ class GestureDetectorLogger:
     MODEL_PATH: Final = (MODEL_DIR / "gesture_recognizer.task").resolve()
     MODEL_URL: Final = "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/latest/gesture_recognizer.task"
 
-    def __init__(self, video_mode: bool = False):
+    def __init__(self, video_mode: bool = False) -> None:
         self._video_mode = video_mode
 
         if not self.MODEL_PATH.exists():
@@ -84,7 +85,7 @@ class GestureDetectorLogger:
                 rr.ClassDescription(
                     info=rr.AnnotationInfo(id=0, label="Hand3D"),
                     keypoint_connections=mp.solutions.hands.HAND_CONNECTIONS,
-                )
+                ),
             ),
             static=True,
         )
@@ -92,7 +93,9 @@ class GestureDetectorLogger:
 
     @staticmethod
     def convert_landmarks_to_image_coordinates(
-        hand_landmarks: list[list[NormalizedLandmark]], width: int, height: int
+        hand_landmarks: list[list[NormalizedLandmark]],
+        width: int,
+        height: int,
     ) -> list[tuple[int, int]]:
         return [(int(lm.x * width), int(lm.y * height)) for hand_landmark in hand_landmarks for lm in hand_landmark]
 
@@ -114,7 +117,7 @@ class GestureDetectorLogger:
         for log_key in ["hand2d/points", "hand2d/connections", "hand3d/points"]:
             rr.log(log_key, rr.Clear(recursive=True))
 
-        for i, gesture in enumerate(recognition_result.gestures):
+        for gesture in recognition_result.gestures:
             # Get the top gesture from the recognition result
             gesture_category = gesture[0].category_name if recognition_result.gestures else "None"
             self.present_detected_gesture(gesture_category)  # Log the detected gesture
@@ -130,7 +133,7 @@ class GestureDetectorLogger:
                         landmark_positions_3d,
                         radii=20,
                         class_ids=0,
-                        keypoint_ids=[i for i in range(len(landmark_positions_3d))],
+                        keypoint_ids=list(range(len(landmark_positions_3d))),
                     ),
                 )
 
@@ -192,10 +195,11 @@ def run_from_sample_image(path: Path | str) -> None:
     """Run the gesture recognition on a single image."""
     image = cv2.imread(str(path))
     # image = resize_image(image, max_dim)
-    show_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    rr.log("media/image", rr.Image(show_image))
+    rr.log("media/image", rr.Image(image, color_model="BGR"))
+
+    detect_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     logger = GestureDetectorLogger(video_mode=False)
-    logger.detect_and_log(show_image, 0)
+    logger.detect_and_log(detect_image, 0)
 
 
 def run_from_video_capture(vid: int | str, max_frame_count: int | None) -> None:
@@ -236,14 +240,11 @@ def run_from_video_capture(vid: int | str, max_frame_count: int | None) -> None:
                 # On some platforms it always returns zero, so we compute from the frame counter and fps
                 frame_time_nano = int(frame_idx * 1000 / fps * 1e6)
 
-            # convert to rgb
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
             # log data
-            rr.set_time_sequence("frame_nr", frame_idx)
-            rr.set_time_nanos("frame_time", frame_time_nano)
+            rr.set_time("frame_nr", sequence=frame_idx)
+            rr.set_time("frame_time", duration=1e-9 * frame_time_nano)
             detector.detect_and_log(frame, frame_time_nano)
-            rr.log("media/video", rr.Image(frame).compress(jpeg_quality=75))
+            rr.log("media/video", rr.Image(frame, color_model="BGR").compress(jpeg_quality=75))
 
     except KeyboardInterrupt:
         pass
@@ -260,7 +261,7 @@ def main() -> None:
 
     # Set up argument parser with description
     parser = argparse.ArgumentParser(
-        description="Uses the MediaPipe Gesture Recognition to track a hand and recognize gestures in image or video."
+        description="Uses the MediaPipe Gesture Recognition to track a hand and recognize gestures in image or video.",
     )
 
     parser.add_argument(

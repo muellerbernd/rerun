@@ -1,5 +1,5 @@
 ---
-title: Stream from Rust
+title: Send from Rust
 order: 3
 ---
 
@@ -43,9 +43,9 @@ use rerun::{
 };
 ```
 
-## Starting the viewer
+## Starting the Viewer
 
-Just run `rerun` to start the [Rerun Viewer](../../reference/viewer/overview.md). It will wait for your application to log some data to it. This viewer is in fact a server that's ready to accept data over TCP (it's listening on `0.0.0.0:9876` by default).
+Just run `rerun` to start the [Rerun Viewer](../../reference/viewer/overview.md). It will wait for your application to log some data to it. This Viewer is in fact a server that's ready to accept data over gRPC (it's listening on `0.0.0.0:9876` by default).
 
 Checkout `rerun --help` for more options.
 
@@ -61,12 +61,12 @@ Checkout `rerun --help` for more options.
 
 To get going we want to create a [`RecordingStream`](https://docs.rs/rerun/latest/rerun/struct.RecordingStream.html):
 We can do all of this with the [`rerun::RecordingStreamBuilder::new`](https://docs.rs/rerun/latest/rerun/struct.RecordingStreamBuilder.html#method.new) function which allows us to name the dataset we're working on by setting its [`ApplicationId`](https://docs.rs/rerun/latest/rerun/struct.ApplicationId.html).
-We then connect it to the already running viewer via [`connect`](https://docs.rs/rerun/latest/rerun/struct.RecordingStreamBuilder.html#method.connect), returning the `RecordingStream` upon success.
+We then connect it to the already running Viewer via [`connect_grpc`](https://docs.rs/rerun/latest/rerun/struct.RecordingStreamBuilder.html#method.connect_grpc?speculative-link), returning the `RecordingStream` upon success.
 
 ```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rec = rerun::RecordingStreamBuilder::new("rerun_example_dna_abacus")
-        .connect(rerun::default_server_addr(), rerun::default_flush_timeout())?;
+        .connect_grpc()?;
 
     Ok(())
 }
@@ -131,7 +131,7 @@ Under the hood, the Rerun [Rust SDK](https://ref.rerun.io/docs/rust) logs indivi
 and radii. Archetypes are just one high-level, convenient way of building such collections of components. For advanced use
 cases, it's possible to add custom components to archetypes, or even log entirely custom sets of components, bypassing
 archetypes altogether.
-For more information on how the rerun data model works, refer to our section on [Entities and Components](../../concepts/entity-component.md).
+For more information on how the Rerun data model works, refer to our section on [Entities and Components](../../concepts/entity-component.md).
 
 Notably, the [`RecordingStream::log`](https://docs.rs/rerun/latest/rerun/struct.RecordingStream.html#method.log) method
 
@@ -147,16 +147,16 @@ Note the two strings we're passing in: `"dna/structure/left"` and `"dna/structur
 These are [_entity paths_](../../concepts/entity-component.md), which uniquely identify each entity in our scene. Every entity is made up of a path and one or more components.
 [Entity paths typically form a hierarchy](../../concepts/entity-path.md) which plays an important role in how data is visualized and transformed (as we shall soon see).
 
-### Batches
+### Component batches
 
 One final observation: notice how we're logging a whole batch of points and colors all at once here.
-[Batches of data](../../concepts/batches.md) are first-class citizens in Rerun and come with all sorts of performance benefits and dedicated features.
+[Component batches](../../concepts/batches.md) are first-class citizens in Rerun and come with all sorts of performance benefits and dedicated features.
 You're looking at one of these dedicated features right now in fact: notice how we're only logging a single radius for all these points, yet somehow it applies to all of them. We call this _clamping_.
 
 ---
 
 A _lot_ is happening in these two simple function calls.
-Good news is: once you've digested all of the above, logging any other Entity will simply be more of the same. In fact, let's go ahead and log everything else in the scene now.
+Good news is: once you've digested all of the above, logging any other entity will simply be more of the same. In fact, let's go ahead and log everything else in the scene now.
 
 ## Adding the missing pieces
 
@@ -241,7 +241,7 @@ Let's add our custom timeline:
 for i in 0..400 {
     let time = i as f32 * 0.01;
 
-    rec.set_time_seconds("stable_time", time as f64);
+    rec.set_duration_secs("stable_time", time);
 
     let times = offsets.iter().map(|offset| time + offset).collect_vec();
     let (beads, colors): (Vec<_>, Vec<_>) = points_interleaved
@@ -274,13 +274,13 @@ You can add as many timelines and timestamps as you want when logging data.
 
 Enter…
 
-### Latest at semantics
+### Latest-at semantics
 
 That's because the Rerun Viewer has switched to displaying your custom timeline by default, but the original data was only logged to the _default_ timeline (called `log_time`).
 To fix this, add this at the beginning of the main function:
 
 ```rust
-rec.set_time_seconds("stable_time", 0f64);
+rec.set_duration_secs("stable_time", 0.0);
 ```
 
 <picture>
@@ -288,10 +288,10 @@ rec.set_time_seconds("stable_time", 0f64);
   <source media="(max-width: 768px)" srcset="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/768w.png">
   <source media="(max-width: 1024px)" srcset="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/1024w.png">
   <source media="(max-width: 1200px)" srcset="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/1200w.png">
-  <img src="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/full.png" alt="screenshot after using latest at">
+  <img src="https://static.rerun.io/logging_data8_latest_at/295492c6cbc68bff129fbe80bf861793b73b0d29/full.png" alt="screenshot after using latest-at">
 </picture>
 
-This fix actually introduces yet another very important concept in Rerun: "latest at" semantics.
+This fix actually introduces yet another very important concept in Rerun: "latest-at" semantics.
 Notice how entities `"dna/structure/left"` & `"dna/structure/right"` have only ever been logged at time zero, and yet they are still visible when querying times far beyond that point.
 
 _Rerun always reasons in terms of "latest" data: for a given entity, it retrieves all of its most recent components at a given time._
@@ -312,7 +312,7 @@ for i in 0..400 {
 
     rec.log(
         "dna/structure",
-        &rerun::archetypes::Transform3D::new(rerun::RotationAxisAngle::new(
+        &rerun::archetypes::Transform3D::from_rotation(rerun::RotationAxisAngle::new(
             glam::Vec3::Z,
             rerun::Angle::Radians(time / 4.0 * TAU),
         )),
@@ -339,12 +339,12 @@ Rerun has you covered:
 
 You can also save a recording (or a portion of it) as you're visualizing it, directly from the viewer.
 
-⚠️ [RRD files don't yet handle versioning!](https://github.com/rerun-io/rerun/issues/873) ⚠️
+⚠️ [RRD files are not yet stable across different versions!](https://github.com/rerun-io/rerun/issues/6410) ⚠️
 
-### Spawning the viewer from your process
+### Spawning the Viewer from your process
 
-If the Rerun Viewer is [installed](../installing-viewer.md) and available in your `PATH`, you can use [`RecordingStream::spawn`](https://docs.rs/rerun/latest/rerun/struct.RecordingStream.html#method.spawn) to automatically start a viewer in a new process and connect to it over TCP.
-If an external viewer was already running, `spawn` will connect to that one instead of spawning a new one.
+If the Rerun Viewer is [installed](../installing-viewer.md) and available in your `PATH`, you can use [`RecordingStream::spawn`](https://docs.rs/rerun/latest/rerun/struct.RecordingStream.html#method.spawn) to automatically start a Viewer in a new process and connect to it over gRPC.
+If an external Viewer was already running, `spawn` will connect to that one instead of spawning a new one.
 
 ```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -357,7 +357,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-Alternatively, you can use [`rerun::native_viewer::show`](https://docs.rs/rerun/latest/rerun/native_viewer/fn.show.html) to start a viewer on the main thread (for platform-compatibility reasons) and feed it data from memory.
+Alternatively, you can use [`rerun::native_viewer::show`](https://docs.rs/rerun/latest/rerun/native_viewer/fn.show.html) to start a Viewer on the main thread (for platform-compatibility reasons) and feed it data from memory.
 This requires the `native_viewer` feature to be enabled in `Cargo.toml`:
 
 ```toml
@@ -373,10 +373,16 @@ let (rec, storage) = rerun::RecordingStreamBuilder::new("rerun_example_dna_abacu
 
 // … log data to `rec` …
 
-rerun::native_viewer::show(storage.take())?;
+// Blocks until the viewer is closed.
+// For more customizations, refer to `re_viewer::run_native_app`.
+rerun::show(
+    // Show has to be called on the main thread.
+    rerun::MainThreadToken::i_promise_i_am_on_the_main_thread(),
+    storage.take(),
+)?;
 ```
 
-The viewer will block the main thread until it is closed.
+The Viewer will block the main thread until it is closed.
 
 ### Closing
 

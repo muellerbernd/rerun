@@ -1,15 +1,13 @@
 .DS_Store
-
-# Codegen stuff:
-crates/re_types/source_hash.txt
-crates/re_types_builder/source_hash.txt
+__MACOSX
 
 # C++ and CMake stuff:
 *.a
 *.bin
 *.o
-**/arrow/
-**/build/
+/.ccls-cache/
+/arrow/
+/build/
 **/build-msvc/
 **/CMakeFiles/
 **/CMakeCache.txt
@@ -19,6 +17,7 @@ _deps
 **/.cache/
 **/rerun_cpp/docs/html
 **/rerun_cpp/docs/xml
+*.tgz
 
 # Rust compile target directory:
 **/target
@@ -33,7 +32,10 @@ _deps
 # Python build artifacts:
 __pycache__
 *.pyc
+*.pyd
 *.so
+**/.pytest_cache
+**/.ipynb_checkpoints/
 
 # Pixi environment
 .pixi
@@ -55,10 +57,25 @@ wheels
 
 # Screenshot comparison build
 /compare_screenshot
+**/tests/snapshots/**/*.diff.png
+**/tests/snapshots/**/*.new.png
+**/tests/snapshots/**/*.old.png
 
-.nox/
+# Mesa install
+mesa
+mesa.7z
+mesa.tar.xz
+icd.json
+
 *.rrd
 
 /meilisearch
 
 .pixi/*
+justfile
+
+# heaptrack files
+*.zst
+
+# IDE stuff
+/.idea

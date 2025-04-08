@@ -23,23 +23,43 @@ cd rerun
 
 Now install the `pixi` package manager: <https://github.com/prefix-dev/pixi?tab=readme-ov-file#installation>
 
-Make sure `cargo --version` prints `1.76.0` once you are done.
+Make sure `cargo --version` prints `1.84.0` once you are done.
 
 If you are using an Apple-silicon Mac (M1, M2), make sure `rustc -vV` outputs `host: aarch64-apple-darwin`. If not, this should fix it:
 
 ```sh
-rustup set default-host aarch64-apple-darwin && rustup install 1.76.0
+rustup set default-host aarch64-apple-darwin && rustup install 1.84.0
 ```
 
-## Building and running the viewer
+## Git-lfs
+
+We use [git-lfs](https://git-lfs.com/) to store big files in the repository, such as UI test snapshots.
+We aim to keep this project buildable without the need of git-lfs (for example, icons and similar assets are checked in to the repo as regular files).
+However, git-lfs is generally required for a proper development environment, e.g. to run tests.
+
+### Setting up git-lfs
+
+The TL;DR is to install git-lfs via your favorite package manager (`apt`, Homebrew, MacPorts, etc.) and run `git lfs install`.
+See the many resources available online more details.
+
+You can ensure that everything is correctly installed by running `git lfs ls-files` from the repository root.
+It should list some test snapshot files.
+
+
+## Validating your environment
+You can validate your environment is set up correctly by running:
+```sh
+pixi run check-env
+```
+
+
+## Building and running the Viewer
 
 Use this command for building and running the viewer:
 
 ```sh
 pixi run rerun
 ```
-
-This custom cargo command is enabled by an alias located in `.cargo/config.toml`.
 
 
 ## Running the Rust examples
@@ -50,6 +70,9 @@ All Rust examples are set up as separate executables, so they can be run by spec
 cargo run -p dna
 ```
 
+They will either connect to an already running rerun viewer, or spawn a new one.
+In debug builds, it will spawn `target/debug/rerun` if it exists, otherwise look for `rerun` on `PATH`.
+
 
 ## Building and installing the Rerun Python SDK
 
@@ -57,12 +80,12 @@ Rerun is available as a package on PyPi and can be installed with `pip install r
 
 Additionally, nightly dev wheels from head of `main` are available at <https://github.com/rerun-io/rerun/releases/tag/prerelease>.
 
-If you want to build from source, you can do so easily in the pixi environment:
-* Run `pixi run py-build --release` to build SDK & viewer for python (or `pixi run py-build` for a debug build)
-* Then you can run examples from the repository, either by making the pixi shell active with  `pixi shell` and then running python or by using `pixi run`, e.g. `pixi run python examples/python/minimal/minimal.py`
+If you want to build from source, you can do so easily in the Pixi environment:
+* Run `pixi run py-build --release` to build SDK & Viewer for Python (or `pixi run py-build` for a debug build)
+* Then you can run examples from the repository, either by making the Pixi shell active with  `pixi shell` and then running Python or by using `pixi run`, e.g. `pixi run Python examples/python/minimal/minimal.py`
 
 
-### Tests & Tooling
+### Tests & tooling
 
 ```sh
 # Run the unit tests
@@ -75,15 +98,17 @@ pixi run py-lint
 pixi run py-fmt
 ```
 
-### Building an installable Python Wheel
-The `py-wheel` command builds a whl file:
+### Building an installable Python wheel
+The `py-build-wheels-sdk-only` command builds a whl file:
 ```sh
-pixi run py-wheel --release
+pixi run py-build-wheels-sdk-only
 ```
-Which you can then install in your own python environment:
+Which you can then install in your own Python environment:
 ```sh
-pip install ./target/wheels/*.whl
+pip install ./dist/CURRENT_ARCHITECTURE/*.whl
 ```
+
+**IMPORTANT**: unlike the official wheels, wheels produced by this method do _not_ contain the viewer, so they may only be used for logging purposes.
 
 ## Building and installing the Rerun C++ SDK
 
@@ -91,25 +116,25 @@ On Windows you have to have a system install of Visual Studio 2022 in order to c
 
 All other dependencies are downloaded by Pixi! You can run tests with:
 ```sh
-pixi run cpp-test
+pixi run -e cpp cpp-test
 ```
 and build all C++ artifacts with:
 ```sh
-pixi run cpp-build-all
+pixi run -e cpp cpp-build-all
 ```
 
 ## Building the docs
 
-High-level documentation for rerun can be found at [http://rerun.io/docs](http://rerun.io/docs). It is built from the separate repository [rerun-docs](https://github.com/rerun-io/rerun-docs).
+High-level documentation for Rerun can be found at [http://rerun.io/docs](http://rerun.io/docs). It is built from the separate repository [rerun-docs](https://github.com/rerun-io/rerun-docs).
 
-- 🌊 [C++ API docs](https://ref.rerun.io/docs/cpp) are built with `doxygen` and hosted on GitHub. Use `pixi run cpp-docs` to build them locally. For details on the C++ doc-system, see [Writing Docs](rerun_cpp/docs/writing_docs.md).
-- 🐍 [Python API docs](https://ref.rerun.io/docs/python) are built via `mkdocs` and hosted on GitHub. For details on the python doc-system, see [Writing Docs](rerun_py/docs/writing_docs.md).
+- 🌊 [C++ API docs](https://ref.rerun.io/docs/cpp) are built with `doxygen` and hosted on GitHub. Use `pixi run -e cpp cpp-docs` to build them locally. For details on the C++ doc-system, see [Writing Docs](rerun_cpp/docs/writing_docs.md).
+- 🐍 [Python API docs](https://ref.rerun.io/docs/python) are built via `mkdocs` and hosted on GitHub. For details on the Python doc-system, see [Writing Docs](rerun_py/docs/writing_docs.md).
 - 🦀 [Rust API docs](https://docs.rs/rerun/) are hosted on  <https://docs.rs/rerun/>. You can build them locally with: `cargo doc --all-features --no-deps --open`.
 
 ## Building for the web
 
-If you want to build a standalone rerun executable that contains the web-viewer and a websocket server,
-you need to install the `wasm32-unknown-unknown` rust target and ensure the `web_viewer` feature flag is set when building rerun.
+If you want to build a standalone Rerun executable that contains the web-viewer and a gRPC server,
+you need to install the `wasm32-unknown-unknown` Rust target and ensure the `web_viewer` feature flag is set when building rerun.
 This is automatically done by this shortcut which builds & runs the web viewer:
 ```
 pixi run rerun-web

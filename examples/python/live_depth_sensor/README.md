@@ -31,7 +31,7 @@ Additionally, to provide a 3D view, the visualization includes a pinhole camera 
 The visualization in this example were created with the following Rerun code.
 
 ```python
-rr.log("realsense", rr.ViewCoordinates.RDF, timeless=True) # Visualize the data as RDF
+rr.log("realsense", rr.ViewCoordinates.RDF, static=True) # Visualize the data as RDF
 ```
 
 
@@ -49,9 +49,9 @@ rr.log(
     rr.Transform3D(
         translation=rgb_from_depth.translation,
         mat3x3=np.reshape(rgb_from_depth.rotation, (3, 3)),
-        from_parent=True,
+        relation=rr.TransformRelation.ChildFromParent,
     ),
-    timeless=True,
+    static=True,
 )
 ```
 
@@ -63,11 +63,11 @@ rr.log(
         focal_length=[rgb_intr.fx, rgb_intr.fy],
         principal_point=[rgb_intr.ppx, rgb_intr.ppy],
     ),
-    timeless=True,
+    static=True,
 )
 ```
 ```python
-rr.set_time_sequence("frame_nr", frame_nr)
+rr.set_time("frame_nr", sequence=frame_nr)
 rr.log("realsense/rgb/image", rr.Image(color_image))
 ```
 
@@ -83,18 +83,17 @@ rr.log(
         focal_length=[depth_intr.fx, depth_intr.fy],
         principal_point=[depth_intr.ppx, depth_intr.ppy],
     ),
-    timeless=True,
+    static=True,
 )
 ```
 ```python
-rr.set_time_sequence("frame_nr", frame_nr)
+rr.set_time("frame_nr", sequence=frame_nr)
 rr.log("realsense/depth/image", rr.DepthImage(depth_image, meter=1.0 / depth_units))
 ```
 
 ## Run the code
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from glob import glob
 from pathlib import Path
+from typing import Self
 
 
 @dataclass
@@ -25,7 +26,7 @@ class Span:
     start: int
     end: int
 
-    def offset(self, by: int):
+    def offset(self, by: int) -> Self:
         self.start += by
         self.end += by
         return self
@@ -100,11 +101,11 @@ class Error:
 class NoClosingTagError(Error):
     CODE = "E001"
 
-    def __init__(self, tagname: str, span: Span):
+    def __init__(self, tagname: str, span: Span) -> None:
         super().__init__(type(self).CODE, f"<{tagname}> has no closing tag", span)
 
     @staticmethod
-    def explain():
+    def explain() -> str:
         return textwrap.dedent(
             """
             If a block element such as `<video>` has no closing tag,
@@ -123,18 +124,18 @@ class NoClosingTagError(Error):
               <source>
             </video>
             ```
-            """
+            """,
         )
 
 
 class NoPrecedingBlankLineError(Error):
     CODE = "E002"
 
-    def __init__(self, tagname: str, ws_start: int, line_end: int):
+    def __init__(self, tagname: str, ws_start: int, line_end: int) -> None:
         super().__init__(type(self).CODE, f"<{tagname}> is not preceded by a blank line", Span(ws_start, line_end))
 
     @staticmethod
-    def explain():
+    def explain() -> str:
         return textwrap.dedent(
             """
             If a block element such as `<video>` is preceded by a paragraph
@@ -160,18 +161,18 @@ class NoPrecedingBlankLineError(Error):
               <source>
             </video>
             ```
-            """
+            """,
         )
 
 
 class BlankLinesError(Error):
     CODE = "E003"
 
-    def __init__(self, tagname: str, span: Span):
+    def __init__(self, tagname: str, span: Span) -> None:
         super().__init__(type(self).CODE, f"<{tagname}> element contains a blank line", span)
 
     @staticmethod
-    def explain():
+    def explain() -> str:
         return textwrap.dedent(
             """
             If a block element such as `<picture>` contains a blank line,
@@ -195,7 +196,36 @@ class BlankLinesError(Error):
               <source>      ## blank line is gone
             </picture>
             ```
+            """,
+        )
+
+
+class BacktickLinkError(Error):
+    CODE = "E004"
+
+    def __init__(self, span: Span) -> None:
+        super().__init__(type(self).CODE, "link contains backtick", span)
+
+    @staticmethod
+    def explain() -> str:
+        return textwrap.dedent(
             """
+            URLs in links wrapping text should not contain backticks (`).
+
+            Example:
+            ```
+            [Some link](`https://github.com/rerun-io/rerun`)
+            ```
+
+            Our markdown renderer will treat the above link as a _relative path_
+            instead of a URL. If the above markdown is in `examples/robotics/README.md`,
+            it will link to \"https://rerun.io/examples/robotics/`https://github.com/rerun-io/rerun`\".
+
+            Solution: Remove the backticks.
+            ```
+            [Some link](https://github.com/rerun-io/rerun)
+            ```
+            """,
         )
 
 
@@ -203,6 +233,7 @@ EXPLAIN = {
     NoClosingTagError.CODE: NoClosingTagError.explain,
     NoPrecedingBlankLineError.CODE: NoPrecedingBlankLineError.explain,
     BlankLinesError.CODE: BlankLinesError.explain,
+    BacktickLinkError.CODE: BacktickLinkError.explain,
 }
 
 
@@ -239,7 +270,7 @@ def get_non_void_element_spans(content: str, search_start: int, tagname: str) ->
     )
 
 
-def check_preceding_newline(tagname: str, content: str, spans: ElementSpans, errors: list[Error]):
+def check_preceding_newline(tagname: str, content: str, spans: ElementSpans, errors: list[Error]) -> None:
     before_open_tag = Span(spans.line.start, spans.element.start).slice(content)
     if len(before_open_tag) == 0:
         # `<picture>` is not indented
@@ -314,18 +345,44 @@ def check_video_elements(content: str, errors: list[Error]) -> None:
         search_start = spans.element.end + 1
 
 
+def check_invalid_links(content: str, errors: list[Error]) -> None:
+    search_start = 0
+    while True:
+        mid_point = content.find("](`", search_start)
+        if mid_point == -1:
+            return
+
+        link_start = content.rfind("[", 0, mid_point)
+        if link_start == -1:
+            # TODO(jprochazk): invalid link
+            search_start = mid_point
+            continue
+
+        link_end = content.find(")", mid_point)
+        if link_end == -1:
+            # TODO(jprochazk): invalid link
+            search_start = mid_point
+            continue
+
+        search_start = link_end + 1
+
+        errors.append(BacktickLinkError(span=Span(link_start, link_end)))
+
+
 def check_file(path: str) -> str | None:
     errors: list[Error] = []
-    content = Path(path).read_text()
+    content = Path(path).read_text(encoding="utf-8")
 
     check_picture_elements(content, errors)
     check_video_elements(content, errors)
+    check_invalid_links(content, errors)
 
     if len(errors) != 0:
         return "\n".join([error.render(path, content) for error in errors])
+    return None
 
 
-def lint(glob_pattern: str):
+def lint(glob_pattern: str) -> None:
     with ThreadPoolExecutor() as e:
         errors = [v for v in e.map(check_file, glob(glob_pattern, recursive=True)) if v is not None]
         if len(errors) > 0:
@@ -336,13 +393,13 @@ def lint(glob_pattern: str):
         print("No problems found")
 
 
-def explain(error_code: str):
-    f = EXPLAIN[error_code]
-    if not f:
+def explain(error_code: str) -> None:
+    if error_code not in EXPLAIN:
         print(f'Unknown error code "{error_code}"')
         print(f"Available error codes: {', '.join(EXPLAIN.keys())}")
         return
 
+    f = EXPLAIN[error_code]
     print(f())
 
 

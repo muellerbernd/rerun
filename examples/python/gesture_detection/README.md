@@ -5,7 +5,7 @@ thumbnail = "https://static.rerun.io/hand-tracking-and-gesture-recognition/56d09
 thumbnail_dimensions = [480, 480]
 -->
 
-Use the [MediaPipe](https://google.github.io/mediapipe/) Hand Landmark and Gesture Detection solutions to
+Use the [MediaPipe](https://github.com/google-ai-edge/mediapipe/) Hand Landmark and Gesture Detection solutions to
 track hands and recognize gestures in images, video, and camera stream.
 
 <picture>
@@ -16,7 +16,7 @@ track hands and recognize gestures in images, video, and camera stream.
   <source media="(max-width: 1200px)" srcset="https://static.rerun.io/gesture_detection/2a5a3ec83962623063297fd95de57062372d5db0/1200w.png">
 </picture>
 
-## Used rerun types
+## Used Rerun types
 [`Image`](https://www.rerun.io/docs/reference/types/archetypes/image), [`Points2D`](https://www.rerun.io/docs/reference/types/archetypes/points2d), [`Points3D`](https://www.rerun.io/docs/reference/types/archetypes/points3d), [`LineStrips2D`](https://www.rerun.io/docs/reference/types/archetypes/line_strips2d), [`ClassDescription`](https://www.rerun.io/docs/reference/types/datatypes/class_description), [`AnnotationContext`](https://www.rerun.io/docs/reference/types/archetypes/annotation_context), [`TextDocument`](https://www.rerun.io/docs/reference/types/archetypes/text_document)
 
 ## Background
@@ -36,8 +36,8 @@ The visualizations in this example were created with the following Rerun code.
 For each processed video frame, all data sent to Rerun is associated with the two [`timelines`](https://www.rerun.io/docs/concepts/timelines) `time` and `frame_idx`.
 
 ```python
-rr.set_time_sequence("frame_nr", frame_idx)
-rr.set_time_nanos("frame_time", frame_time_nano)
+rr.set_time("frame_nr", sequence=frame_idx)
+rr.set_time("frame_time", duration=1e-9 * frame_time_nano)
 ```
 
 ### Video
@@ -80,14 +80,14 @@ rr.log("Hand3D", rr.ViewCoordinates.LEFT_HAND_Y_DOWN, static=True)
 #### 2D points
 
 ```python
-# Log points to the image and Hand Entity
+# Log points to the image and Hand entity
 for log_key in ["Media/Points", "Hand/Points"]:
     rr.log(
       log_key,
       rr.Points2D(points, radii=10, colors=[255, 0, 0])
     )
 
-# Log connections to the image and Hand Entity [128, 128, 128]
+# Log connections to the image and Hand entity [128, 128, 128]
 for log_key in ["Media/Connections", "Hand/Connections"]:
     rr.log(
       log_key,
@@ -124,7 +124,6 @@ rr.log(
 ## Run the code
 To run this example, make sure you have the Rerun repository checked out and the latest SDK installed:
 ```bash
-# Setup
 pip install --upgrade rerun-sdk  # install the latest Rerun SDK
 git clone git@github.com:rerun-io/rerun.git  # Clone the repository
 cd rerun

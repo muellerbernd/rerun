@@ -25,18 +25,18 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Generator
 from datetime import datetime, timezone
 from enum import Enum
 from glob import glob
 from multiprocessing import cpu_count
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 import git
 import requests
 import tomlkit
-from colorama import Fore
-from colorama import init as colorama_init
+from colorama import Fore, init as colorama_init
 from dag import DAG, RateLimiter
 from semver import VersionInfo
 
@@ -53,12 +53,19 @@ X = Fore.RESET
 def cargo(
     args: str,
     *,
+    cargo_version: str | None = None,
     cwd: str | Path | None = None,
-    env: dict[str, Any] = {},
+    env: dict[str, Any] | None = None,
     dry_run: bool = False,
     capture: bool = False,
 ) -> Any:
-    cmd = [CARGO_PATH] + args.split()
+    if env is None:
+        env = {}
+
+    if cargo_version is None:
+        cmd = [CARGO_PATH] + args.split()
+    else:
+        cmd = [CARGO_PATH, f"+{cargo_version}"] + args.split()
     # print(f"> {subprocess.list2cmdline(cmd)}")
     if not dry_run:
         stderr = subprocess.STDOUT if capture else None
@@ -66,7 +73,7 @@ def cargo(
 
 
 class Crate:
-    def __init__(self, manifest: dict[str, Any], path: Path):
+    def __init__(self, manifest: dict[str, Any], path: Path) -> None:
         self.manifest = manifest
         self.path = path
 
@@ -107,7 +114,7 @@ class DependencyKind(Enum):
 
 
 class Dependency:
-    def __init__(self, name: str, manifest_key: list[str], kind: DependencyKind):
+    def __init__(self, name: str, manifest_key: list[str], kind: DependencyKind) -> None:
         self.name = name
         self.manifest_key = manifest_key
         self.kind = kind
@@ -153,6 +160,7 @@ def get_sorted_publishable_crates(ctx: Context, crates: dict[str, Crate]) -> dic
     ) -> None:
         crate = crates[name]
         for dependency in crate_deps(crate.manifest):
+            assert dependency.name != name, "Crate {name} had itself as a dependency"
             if dependency.name not in crates:
                 continue
             if dependency.name in visited:
@@ -325,7 +333,7 @@ def bump_dependency_versions(
 def bump_version(dry_run: bool, bump: Bump | str | None, pre_id: str, dev: bool) -> None:
     ctx = Context()
 
-    root: dict[str, Any] = tomlkit.parse(Path("Cargo.toml").read_text())
+    root: dict[str, Any] = tomlkit.parse(Path("Cargo.toml").read_text(encoding="utf-8"))
     crates = get_workspace_crates(root)
     current_version = VersionInfo.parse(root["workspace"]["package"]["version"])
 
@@ -361,10 +369,10 @@ def bump_version(dry_run: bool, bump: Bump | str | None, pre_id: str, dev: bool)
 
     # Save after bumping all versions
     if not dry_run:
-        with Path("Cargo.toml").open("w") as f:
+        with Path("Cargo.toml").open("w", encoding="utf-8") as f:
             tomlkit.dump(root, f)
-        for name, crate in crates.items():
-            with Path(f"{crate.path}/Cargo.toml").open("w") as f:
+        for crate in crates.values():
+            with Path(f"{crate.path}/Cargo.toml").open("w", encoding="utf-8") as f:
                 tomlkit.dump(crate.manifest, f)
     cargo("update --workspace", dry_run=dry_run)
     if shutil.which("taplo") is not None:
@@ -429,7 +437,13 @@ def publish_crate(crate: Crate, token: str, version: str, env: dict[str, Any]) -
     retry_attempts = 5
     while True:
         try:
-            cargo(f"publish --quiet --token {token}", cwd=crate.path, env=env, dry_run=False, capture=True)
+            cargo(
+                f"publish --quiet --locked --token {token}",
+                cwd=crate.path,
+                env=env,
+                dry_run=False,
+                capture=True,
+            )
             print(f"{G}Published{X} {B}{name}{X}@{B}{version}{X}")
             break
         except subprocess.CalledProcessError as e:
@@ -468,8 +482,8 @@ def publish_unpublished_crates_in_parallel(all_crates: dict[str, Crate], version
         dependency_graph[name] = dependencies
 
     # walk the dependency graph in parallel and publish each crate
-    print("Publishing crates…")
-    env = {**os.environ.copy(), "RERUN_IS_PUBLISHING": "yes"}
+    print(f"Publishing {len(unpublished_crates)} crates…")
+    env = {**os.environ.copy(), "RERUN_IS_PUBLISHING_CRATES": "yes"}
     DAG(dependency_graph).walk_parallel(
         lambda name: publish_crate(unpublished_crates[name], token, version, env),  # noqa: E731
         # 30 tokens per minute (burst limit in crates.io)
@@ -482,7 +496,7 @@ def publish_unpublished_crates_in_parallel(all_crates: dict[str, Crate], version
 def publish(dry_run: bool, token: str) -> None:
     ctx = Context()
 
-    root: dict[str, Any] = tomlkit.parse(Path("Cargo.toml").read_text())
+    root: dict[str, Any] = tomlkit.parse(Path("Cargo.toml").read_text(encoding="utf-8"))
     version: str = root["workspace"]["package"]["version"]
     print("Collecting publishable crates…")
     crates = get_sorted_publishable_crates(ctx, get_workspace_crates(root))
@@ -520,9 +534,10 @@ def get_latest_published_version(crate_name: str, skip_prerelease: bool = False)
         for version in versions:
             # no prerelease metadata
             if "-" not in version["num"]:
-                return version["num"]
+                return str(version["num"])
+        raise RuntimeError(f"no non-prerelease versions found for crate {crate_name}")
     else:
-        return versions[0]["num"]  # type: ignore [no-any-return]
+        return str(versions[0]["num"])
 
 
 class Target(Enum):
@@ -534,7 +549,7 @@ class Target(Enum):
 
 
 def get_release_version_from_git_branch() -> str:
-    return git.Repo().active_branch.name.lstrip("release-")
+    return git.Repo().active_branch.name.removeprefix("release-")
 
 
 def get_version(target: Target | None, skip_prerelease: bool = False) -> VersionInfo:
@@ -552,7 +567,7 @@ def get_version(target: Target | None, skip_prerelease: bool = False) -> Version
             raise Exception("Failed to get latest published version for `rerun` crate")
         current_version = VersionInfo.parse(latest_published_version)
     else:
-        root: dict[str, Any] = tomlkit.parse(Path("Cargo.toml").read_text())
+        root: dict[str, Any] = tomlkit.parse(Path("Cargo.toml").read_text(encoding="utf-8"))
         current_version = VersionInfo.parse(root["workspace"]["package"]["version"])
 
     return current_version
@@ -609,13 +624,19 @@ def main() -> None:
     version_parser = cmds_parser.add_parser("version", help="Bump the crate versions")
     target_version_update_group = version_parser.add_mutually_exclusive_group()
     target_version_update_group.add_argument(
-        "--bump", type=Bump, choices=list(Bump), help="Bump version according to semver"
+        "--bump",
+        type=Bump,
+        choices=list(Bump),
+        help="Bump version according to semver",
     )
     target_version_update_group.add_argument("--exact", type=str, help="Update version to an exact value")
     dev_parser = version_parser.add_mutually_exclusive_group()
     dev_parser.add_argument("--dev", default=None, action="store_true", help="Set build metadata to `+dev`")
     dev_parser.add_argument(
-        "--no-dev", dest="dev", action="store_false", help="Remove `+dev` from build metadata (if present)"
+        "--no-dev",
+        dest="dev",
+        action="store_false",
+        help="Remove `+dev` from build metadata (if present)",
     )
     version_parser.add_argument("--dry-run", action="store_true", help="Display the execution plan")
     version_parser.add_argument(
@@ -635,14 +656,22 @@ def main() -> None:
 
     get_version_parser = cmds_parser.add_parser("get-version", help="Get the current crate version")
     get_version_parser.add_argument(
-        "--finalize", action="store_true", help="Return version finalized if it is a pre-release"
+        "--finalize",
+        action="store_true",
+        help="Return version finalized if it is a pre-release",
     )
     get_version_parser.add_argument("--pre-id", action="store_true", help="Retrieve only the prerelease identifier")
     get_version_parser.add_argument(
-        "--from", type=Target, choices=list(Target), help="Get version from git or crates.io", dest="target"
+        "--from",
+        type=Target,
+        choices=list(Target),
+        help="Get version from git or crates.io",
+        dest="target",
     )
     get_version_parser.add_argument(
-        "--skip-prerelease", action="store_true", help="If target is cratesio, return the first non-prerelease version"
+        "--skip-prerelease",
+        action="store_true",
+        help="If target is cratesio, return the first non-prerelease version",
     )
 
     args = parser.parse_args()
